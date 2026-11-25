@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/arz282-ctrl/Ucuts.git",
+  "pinned_commit": "15469eeb1c327650d46731815486725085dd733d",
+  "license": "MIT",
+  "entrypoint": "scripts/ucuts_pipeline.py",
+  "status": "pinned_not_forked",
+  "notes": "Wrap via allowlisted ucuts_adapter operations in Phase 4; do not fork before adapter tests pass."
+}

@@ -1,0 +1,23 @@
+{
+  "root_folder": {"name": "Metuse AI", "id": "15-EirfsWj4NbuLWyoE-aTyuFLeCPiKaH"},
+  "note": "IDs only, no secrets. Use `gdrive mutate update FILE_ID path` to update in place. Pre-existing root file implementation.md (1UGF9hsZIv3XqVJfPPb3zjxM0F00GEMbI) must not be overwritten.",
+  "folders": {
+    "docs": "1XjHB7aXiq3cUFM2TuMRZ2NnU4DJXH9g9",
+    "docs/architecture": "1FiZqa4epE4fFOM-ZzxrjQU8lMIB5nPeH",
+    "docs/operations": "1XuQ7Bq-9JTyqO62myXGdtO9rKaGHYUn1",
+    "packages": "1Bq-kD3pBA95ejidtG-Jx4FRXcIgd_ODB",
+    "packages/ucuts_adapter": "1jumkYNugiRdqqtiOmuk2Hl_sJoAHKl4f",
+    "skills": "1biNKlQS0KyKLeGDaW_6BCu_3-dKareIs",
+    "skills/router": "1MH0qZ7aPVt6x3yqtINorpOXzJpTttY0x",
+    "skills/research-pack": "1-OMeCOsIxMzUHxp-AADceUEMAY_3dR_Y",
+    "skills/marketing-seo-pack": "14n_YhA7zQisUBupBZVbftDlButWuPpJk",
+    "skills/media-pack": "1j_787kGHpaOO7xj4_w2r-NMkfeYh554X"
+  },
+  "files": {
+    "README.md": "1e5IX87A5vYN503V_xs3IQZdESvk5Vi9g",
+    ".gitignore": "1kXTt3qcv2Of2pQUoQr2INlkU3B6xeTgH",
+    ".env.example": "1D0zzsnxtJooAplz0hxUDrrZg4cbr-V0B",
+    "skills/ATTRIBUTION.md": "1xMNf32Nu6uXfQqn0L3QZRErQ1IRB5JLC",
+    "packages/ucuts_adapter/UCUTS_PIN.json": "1n8l1hcyo06HbwHITFsb5-v0C4UmcLhtO"
+  }
+}

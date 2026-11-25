@@ -1,0 +1,38 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Secrets (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Media render artifacts
+reels_output/
+_tmp_work/
+*.mp4
+*.mov
+*.wav
+
+# Local infra data
+infrastructure/**/data/
