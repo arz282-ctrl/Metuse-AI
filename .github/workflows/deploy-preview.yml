@@ -1,0 +1,68 @@
+name: Deploy Preview
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-preview
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  verify:
+    name: Pre-deploy verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv python install 3.13
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run mypy apps packages database tests
+      - run: uv run pytest tests/unit -v
+
+  deploy-preview:
+    name: Deploy to Preview (Cloudflare / Staging)
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm 10
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Build and deploy Cloudflare Pages preview (when credentials configured)
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          NEXT_PUBLIC_API_URL: ${{ vars.PREVIEW_API_URL }}
+        run: |
+          if [ ! -f "apps/web/package.json" ]; then
+            echo "apps/web is not scaffolded yet; skipping Cloudflare Pages preview deploy."
+            exit 0
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN not configured; skipping preview deploy."
+            exit 0
+          fi
+          pnpm --dir apps/web install --frozen-lockfile
+          pnpm --dir apps/web build
+          npx --yes wrangler pages deploy apps/web/out --project-name=metuse-ai-web --branch=develop

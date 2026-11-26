@@ -1,0 +1,36 @@
+# Free-tier Render Blueprint for the Metuse AI FastAPI Preview API.
+# All sensitive values use `sync: false` and must be entered in the Render Dashboard
+# (never committed to git). Free web services spin down on inactivity ($0/month).
+services:
+  - type: web
+    name: metuse-ai-api-preview
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./infrastructure/docker/api.Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: APP_CORS_ORIGINS
+        value: https://develop.metuse-ai-web.pages.dev,https://metuse-ai-web.pages.dev
+      - key: REDIS_URL
+        value: ""
+      - key: APP_DATABASE_URL
+        sync: false
+      - key: APP_JWT_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

@@ -1,0 +1,13 @@
+"use client";
+
+import React from "react";
+import { ProtectedRoute } from "@/components/layout/protected-route";
+import { AppShell } from "@/components/layout/app-shell";
+
+export default function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <AppShell>{children}</AppShell>
+    </ProtectedRoute>
+  );
+}
