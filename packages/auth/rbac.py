@@ -17,12 +17,8 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
     RoleName.AGENCY_MEMBER: frozenset(
         {"workspace:read", "clients:read", "brand:read", "brand:write"}
     ),
-    RoleName.CREATOR_OWNER: frozenset(
-        {"workspace:*", "clients:*", "brand:*", "audit:read"}
-    ),
-    RoleName.CLIENT_REVIEWER: frozenset(
-        {"client:read", "brand:read", "deliverables:approve"}
-    ),
+    RoleName.CREATOR_OWNER: frozenset({"workspace:*", "clients:*", "brand:*", "audit:read"}),
+    RoleName.CLIENT_REVIEWER: frozenset({"client:read", "brand:read", "deliverables:approve"}),
     RoleName.CLIENT_VIEWER: frozenset({"client:read", "brand:read"}),
 }
 

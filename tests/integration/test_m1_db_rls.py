@@ -117,15 +117,19 @@ def _cleanup_test_entities(
 
 def test_metuse_app_role_and_force_rls_metadata(owner_engine: Engine) -> None:
     with owner_engine.connect() as conn:
-        role_row = conn.execute(
-            text(
-                """
+        role_row = (
+            conn.execute(
+                text(
+                    """
                 SELECT rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolcanlogin
                 FROM pg_roles
                 WHERE rolname = 'metuse_app'
                 """
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         assert role_row["rolsuper"] is False
         assert role_row["rolbypassrls"] is False
         assert role_row["rolcreatedb"] is False
@@ -157,18 +161,22 @@ def test_metuse_app_role_and_force_rls_metadata(owner_engine: Engine) -> None:
         }
         assert set(_ALL_TABLES).issubset(existing_tables)
 
-        rls_rows = conn.execute(
-            text(
-                """
+        rls_rows = (
+            conn.execute(
+                text(
+                    """
                 SELECT relname, relrowsecurity, relforcerowsecurity
                 FROM pg_class c
                 JOIN pg_namespace n ON n.oid = c.relnamespace
                 WHERE n.nspname = 'public'
                   AND c.relname = ANY(:tables)
                 """
-            ),
-            {"tables": list(_RLS_TABLES)},
-        ).mappings().all()
+                ),
+                {"tables": list(_RLS_TABLES)},
+            )
+            .mappings()
+            .all()
+        )
 
         rls_by_name = {str(r["relname"]): r for r in rls_rows}
         assert set(rls_by_name.keys()) == set(_RLS_TABLES)
@@ -316,18 +324,22 @@ def test_workspace_insert_returning_and_non_recursive_membership_listing(
                 text("SELECT set_config('app.current_user_id', :uid, true)"),
                 {"uid": str(u_id)},
             )
-            inserted = conn.execute(
-                text(
-                    """
+            inserted = (
+                conn.execute(
+                    text(
+                        """
                     INSERT INTO public.workspaces (
                         id, name, slug, workspace_type, max_members, created_by_user_id
                     )
                     VALUES (:id, 'Returning WS', :slug, 'agency', 5, :uid)
                     RETURNING id, name, slug, workspace_type, max_members, created_by_user_id
                     """
-                ),
-                {"id": ws_id, "slug": ws_slug, "uid": u_id},
-            ).mappings().one()
+                    ),
+                    {"id": ws_id, "slug": ws_slug, "uid": u_id},
+                )
+                .mappings()
+                .one()
+            )
             created_workspaces.append(ws_id)
             assert UUID(str(inserted["id"])) == ws_id
             assert inserted["slug"] == ws_slug
@@ -356,14 +368,14 @@ def test_workspace_insert_returning_and_non_recursive_membership_listing(
                 text("SELECT set_config('app.current_user_id', :uid, true)"),
                 {"uid": str(u_id)},
             )
-            ws_rows = conn.execute(
-                text("SELECT id FROM public.workspaces")
-            ).scalars().all()
+            ws_rows = conn.execute(text("SELECT id FROM public.workspaces")).scalars().all()
             assert ws_id in [UUID(str(r)) for r in ws_rows]
 
-            wm_rows = conn.execute(
-                text("SELECT workspace_id, user_id FROM public.workspace_memberships")
-            ).mappings().all()
+            wm_rows = (
+                conn.execute(text("SELECT workspace_id, user_id FROM public.workspace_memberships"))
+                .mappings()
+                .all()
+            )
             assert len(wm_rows) == 1
             assert UUID(str(wm_rows[0]["workspace_id"])) == ws_id
             assert UUID(str(wm_rows[0]["user_id"])) == u_id
@@ -524,27 +536,23 @@ def test_cross_tenant_rls_isolation_across_all_seven_tables_and_composite_fk(
                 {"uid": str(user_a)},
             )
 
-            assert conn.execute(
-                text("SELECT id FROM public.workspaces")
-            ).scalars().all() == [ws_a]
+            assert conn.execute(text("SELECT id FROM public.workspaces")).scalars().all() == [ws_a]
             assert conn.execute(
                 text("SELECT user_id FROM public.workspace_memberships")
             ).scalars().all() == [user_a]
-            assert conn.execute(
-                text("SELECT id FROM public.clients")
-            ).scalars().all() == [client_a]
+            assert conn.execute(text("SELECT id FROM public.clients")).scalars().all() == [client_a]
             assert conn.execute(
                 text("SELECT client_id FROM public.client_memberships")
             ).scalars().all() == [client_a]
-            assert conn.execute(
-                text("SELECT id FROM public.brand_profiles")
-            ).scalars().all() == [brand_a]
-            assert conn.execute(
-                text("SELECT id FROM public.brand_assets")
-            ).scalars().all() == [asset_a]
-            assert conn.execute(
-                text("SELECT id FROM public.audit_logs")
-            ).scalars().all() == [audit_a]
+            assert conn.execute(text("SELECT id FROM public.brand_profiles")).scalars().all() == [
+                brand_a
+            ]
+            assert conn.execute(text("SELECT id FROM public.brand_assets")).scalars().all() == [
+                asset_a
+            ]
+            assert conn.execute(text("SELECT id FROM public.audit_logs")).scalars().all() == [
+                audit_a
+            ]
 
             # Cross-tenant UPDATE/DELETE affects 0 rows
             res = conn.execute(
@@ -652,10 +660,14 @@ def test_audit_logs_split_rls_and_immutability_for_app_and_owner(
                 ),
                 {"id": pre_ws_audit_b, "uid": user_b, "tid": str(user_b)},
             )
-            visible = conn.execute(
-                text("SELECT id FROM public.audit_logs WHERE id = ANY(:ids)"),
-                {"ids": [pre_ws_audit_a, pre_ws_audit_b]},
-            ).scalars().all()
+            visible = (
+                conn.execute(
+                    text("SELECT id FROM public.audit_logs WHERE id = ANY(:ids)"),
+                    {"ids": [pre_ws_audit_a, pre_ws_audit_b]},
+                )
+                .scalars()
+                .all()
+            )
             assert visible == [pre_ws_audit_b]
 
         # UPDATE, DELETE, TRUNCATE must be rejected for BOTH metuse_app and metuse (owner)
@@ -751,10 +763,14 @@ def test_audit_logs_preworkspace_actor_spoofing_rejected(
                 ),
                 {"id": own_audit_id, "actor_uid": user_a, "tid": str(user_a)},
             )
-            visible = conn.execute(
-                text("SELECT id FROM public.audit_logs WHERE id = :id"),
-                {"id": own_audit_id},
-            ).scalars().all()
+            visible = (
+                conn.execute(
+                    text("SELECT id FROM public.audit_logs WHERE id = :id"),
+                    {"id": own_audit_id},
+                )
+                .scalars()
+                .all()
+            )
             assert visible == [own_audit_id]
 
         # 4. Unset-GUC INSERT with workspace_id=NULL and actor_user_id=NULL

@@ -1,4 +1,8 @@
-"""Meta credentials OAuth2 start/callback adapter (live + mock_dev mode)."""
+"""Meta identity OAuth2 start/callback adapter (live + dev/test mock mode).
+
+Strictly scoped to Phase 1 user identity sign-in (`user_identities`, scopes `email,public_profile`).
+Never couples to Phase 5 `MetaConnection` / Business Integration System User tokens.
+"""
 
 from __future__ import annotations
 
@@ -10,12 +14,15 @@ from urllib.parse import urlencode
 import httpx
 
 from packages.auth.jwt import decode_hs256_token, encode_hs256_token, resolve_jwt_secret
+from packages.auth.sessions import SessionStore
 from packages.shared.config import BaseAppSettings
 from packages.shared.errors import BadRequestError, ExternalServiceError
 
 _META_AUTHORIZE_URL = "https://www.facebook.com/v21.0/dialog/oauth"
 _META_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token"  # noqa: S105
 _META_ME_URL = "https://graph.facebook.com/v21.0/me"
+_META_IDENTITY_SCOPES = "email,public_profile"
+_META_MOCK_ALLOWED_ENVS = frozenset({"development", "test"})
 
 
 @dataclass(frozen=True)
@@ -39,30 +46,48 @@ class MetaUserIdentityResult:
 
 
 def resolve_meta_auth_mode(settings: BaseAppSettings) -> str:
-    """Determine Meta OAuth execution mode; refuse mock mode in non-dev environments."""
+    """Determine Meta OAuth execution mode; block mock mode outside development/test."""
     mode = settings.meta_auth_mode.strip().lower() or "mock_dev"
-    if mode == "mock_dev" and not settings.is_dev_env():
+    app_env = settings.app_env.strip().lower()
+    if mode == "mock_dev" and app_env not in _META_MOCK_ALLOWED_ENVS:
         raise ExternalServiceError(
-            "Meta mock authentication mode is disabled outside development environments"
+            "Meta mock authentication mode is disabled outside development/test environments"
         )
     if mode not in {"mock_dev", "live"}:
         raise BadRequestError(f"Unsupported META_AUTH_MODE '{mode}'")
     return mode
 
 
+def _resolve_allowlisted_redirect_uri(
+    settings: BaseAppSettings,
+    redirect_uri: str | None,
+) -> str:
+    allowed = settings.get_meta_allowed_redirect_uris()
+    if not allowed:
+        raise BadRequestError("Meta redirect URI allowlist is not configured")
+    candidate = (redirect_uri or settings.meta_redirect_uri).strip()
+    if not candidate:
+        raise BadRequestError("Meta redirect URI is not configured")
+    if candidate not in allowed:
+        raise BadRequestError("Meta redirect URI is not in the configured allowlist")
+    return candidate
+
+
 def start_meta_oauth(
     settings: BaseAppSettings,
     *,
     redirect_uri: str | None = None,
+    session_store: SessionStore | None = None,
 ) -> MetaLoginStartResult:
-    """Create CSRF-protected OAuth state and Meta hosted login URL."""
+    """Create CSRF-protected OAuth state and Meta hosted identity login URL."""
     mode = resolve_meta_auth_mode(settings)
     jwt_secret = resolve_jwt_secret(settings)
-    target_redirect = (redirect_uri or settings.meta_redirect_uri).strip()
-    if not target_redirect:
-        raise BadRequestError("Meta redirect URI is not configured")
+    target_redirect = _resolve_allowlisted_redirect_uri(settings, redirect_uri)
 
     state_nonce = secrets.token_urlsafe(24)
+    if session_store is not None:
+        session_store.store_oauth_nonce(state_nonce, ttl_seconds=600)
+
     state_token = encode_hs256_token(
         {
             "nonce": state_nonce,
@@ -71,7 +96,7 @@ def start_meta_oauth(
         },
         secret=jwt_secret,
         ttl_seconds=600,
-        token_use="meta_oauth_state",
+        token_use="meta_oauth_state",  # noqa: S106
     )
 
     if mode == "mock_dev":
@@ -97,7 +122,7 @@ def start_meta_oauth(
             "client_id": app_id,
             "redirect_uri": target_redirect,
             "state": state_token,
-            "scope": "email,public_profile",
+            "scope": _META_IDENTITY_SCOPES,
             "response_type": "code",
         }
     )
@@ -108,8 +133,13 @@ def start_meta_oauth(
     )
 
 
-def verify_meta_oauth_state(settings: BaseAppSettings, state: str) -> dict[str, str]:
-    """Validate signed CSRF state parameter from Meta OAuth callback."""
+def verify_meta_oauth_state(
+    settings: BaseAppSettings,
+    state: str,
+    *,
+    session_store: SessionStore | None = None,
+) -> dict[str, str]:
+    """Validate signed CSRF state parameter and optionally consume its single-use nonce."""
     jwt_secret = resolve_jwt_secret(settings)
     claims = decode_hs256_token(state, secret=jwt_secret, expected_use="meta_oauth_state")
     redirect_uri = str(claims.get("redirect_uri", "")).strip()
@@ -117,6 +147,10 @@ def verify_meta_oauth_state(settings: BaseAppSettings, state: str) -> dict[str, 
     nonce = str(claims.get("nonce", "")).strip()
     if not redirect_uri or not nonce or mode not in {"mock_dev", "live"}:
         raise BadRequestError("Invalid Meta OAuth state claims")
+    if redirect_uri not in settings.get_meta_allowed_redirect_uris():
+        raise BadRequestError("Meta OAuth state redirect URI is not allowlisted")
+    if session_store is not None and not session_store.consume_oauth_nonce(nonce):
+        raise BadRequestError("Meta OAuth state has expired or was already consumed")
     return {"redirect_uri": redirect_uri, "mode": mode, "nonce": nonce}
 
 
@@ -128,12 +162,13 @@ def exchange_meta_code(
     mock_email: str | None = None,
     mock_name: str | None = None,
     http_client: httpx.Client | None = None,
+    session_store: SessionStore | None = None,
 ) -> MetaUserIdentityResult:
     """Exchange Meta OAuth authorization code server-side and return secret ref only."""
     if not code or not code.strip():
         raise BadRequestError("Missing Meta OAuth authorization code")
-    state_claims = verify_meta_oauth_state(settings, state)
     mode = resolve_meta_auth_mode(settings)
+    state_claims = verify_meta_oauth_state(settings, state, session_store=session_store)
     if state_claims["mode"] != mode:
         raise BadRequestError("Meta OAuth state mode mismatch")
 
@@ -195,7 +230,6 @@ def exchange_meta_code(
 
         email = str(me_data.get("email") or f"meta-{subject}@meta.local").strip().lower()
         full_name = str(me_data.get("name") or "Meta User").strip()
-        # Only a hash-derived opaque secret reference is stored in DB; raw token is never persisted.
         token_fingerprint = hashlib.sha256(raw_access_token.encode("utf-8")).hexdigest()[:16]
         token_ref = f"secret://meta-login/{subject}/{token_fingerprint}"
         return MetaUserIdentityResult(

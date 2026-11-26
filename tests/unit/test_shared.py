@@ -141,8 +141,7 @@ def test_scrub_text_redacts_tokens_and_dsns() -> None:
 
 def test_scrub_redacts_empty_username_at_passwords_and_query_params() -> None:
     assert (
-        scrub_text("redis://:secretpw@localhost:6379/0")
-        == f"redis://:{REDACTED}@localhost:6379/0"
+        scrub_text("redis://:secretpw@localhost:6379/0") == f"redis://:{REDACTED}@localhost:6379/0"
     )
     assert (
         scrub_text("postgresql://metuse:p@ssw0rd!#@localhost:5433/metuse")
@@ -204,8 +203,7 @@ def test_scrub_redacts_empty_username_at_passwords_and_query_params() -> None:
     scrubbed_dsn_map = scrub_secrets(
         {
             "database_url": (
-                "postgresql://metuse:pw@localhost:5433/metuse"
-                "?password=leaked_qp_pw&sslmode=require"
+                "postgresql://metuse:pw@localhost:5433/metuse?password=leaked_qp_pw&sslmode=require"
             ),
             "redis_url": "redis://:redis_pw@localhost:6379/0?token=qptok123&db=0",
             "callback_url": (
@@ -215,10 +213,12 @@ def test_scrub_redacts_empty_username_at_passwords_and_query_params() -> None:
         }
     )
     assert scrubbed_dsn_map["database_url"] == (
-        f"postgresql://metuse:{REDACTED}@localhost:5433/metuse"
-        f"?password={REDACTED}&sslmode=require"
+        f"postgresql://metuse:{REDACTED}@localhost:5433/metuse?password={REDACTED}&sslmode=require"
     )
-    assert scrubbed_dsn_map["redis_url"] == f"redis://:{REDACTED}@localhost:6379/0?token={REDACTED}&db=0"
+    assert (
+        scrubbed_dsn_map["redis_url"]
+        == f"redis://:{REDACTED}@localhost:6379/0?token={REDACTED}&db=0"
+    )
     assert scrubbed_dsn_map["callback_url"] == (
         f"https://app.example.com/cb?code=ok_code&access_token={REDACTED}"
         f"&secret={REDACTED}&api_key={REDACTED}"

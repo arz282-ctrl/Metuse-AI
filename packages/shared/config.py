@@ -42,6 +42,8 @@ class BaseAppSettings(BaseSettings):
     app_database_url: SecretStr | None = None
     migration_database_url: SecretStr | None = None
     redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
+    s3_internal_endpoint_url: str | None = None
+    s3_public_endpoint_url: str | None = None
     s3_endpoint: str = "http://localhost:9000"
     s3_public_endpoint: str | None = None
     s3_access_key: SecretStr = SecretStr("")
@@ -53,18 +55,68 @@ class BaseAppSettings(BaseSettings):
     secret_store_backend: str = "env_dev"  # noqa: S105
     app_jwt_secret: SecretStr = SecretStr("")
     jwt_expires_seconds: int = 3600
+    session_cookie_secure: bool = True
     app_cors_origins: str = "http://localhost:3000,http://localhost:3001"
     meta_auth_mode: str = "mock_dev"
     meta_app_id: str = ""
     meta_app_secret: SecretStr = SecretStr("")
     meta_config_id: str = ""
     meta_redirect_uri: str = "http://localhost:3000/auth/meta/callback"
+    meta_allowed_redirect_uris: str = ""
     meta_webhook_verify_token: SecretStr = SecretStr("")
+
+    # Supabase managed infrastructure (optional; server-only secrets never exposed to browser)
+    next_public_supabase_url: str = ""
+    next_public_supabase_anon_key: str = ""
+    supabase_service_role_key: SecretStr = SecretStr("")
+    supabase_jwt_secret: SecretStr = SecretStr("")
+
+    # Cloudflare & monitoring (optional in Phase 1)
+    cloudflare_account_id: str = ""
+    cloudflare_api_token: SecretStr = SecretStr("")
+    sentry_dsn: str = ""
 
     def is_dev_env(self) -> bool:
         """Return True only when APP_ENV is an explicit development/local/test value."""
         normalized = self.app_env.strip().lower()
         return normalized in DEV_APP_ENVS and normalized not in NON_DEV_APP_ENVS
+
+    def get_s3_internal_endpoint_url(self) -> str:
+        """Return internal S3 endpoint used for server-to-server object storage calls."""
+        if self.s3_internal_endpoint_url and self.s3_internal_endpoint_url.strip():
+            return self.s3_internal_endpoint_url.strip().rstrip("/")
+        return self.s3_endpoint.strip().rstrip("/")
+
+    def get_s3_public_endpoint_url(self) -> str:
+        """Return browser-accessible S3 endpoint used strictly for SigV4 presigned URLs."""
+        for candidate in (
+            self.s3_public_endpoint_url,
+            self.s3_public_endpoint,
+            self.s3_internal_endpoint_url,
+            self.s3_endpoint,
+        ):
+            if candidate and candidate.strip():
+                return candidate.strip().rstrip("/")
+        return "http://localhost:9000"
+
+    def get_cors_origins(self) -> list[str]:
+        """Return parsed, non-wildcard CORS allowlist origins."""
+        return [
+            origin.strip().rstrip("/")
+            for origin in self.app_cors_origins.split(",")
+            if origin.strip() and origin.strip() != "*"
+        ]
+
+    def get_meta_allowed_redirect_uris(self) -> frozenset[str]:
+        """Return exact redirect URI allowlist for Meta identity OAuth."""
+        allowed: set[str] = set()
+        if self.meta_redirect_uri.strip():
+            allowed.add(self.meta_redirect_uri.strip())
+        for item in self.meta_allowed_redirect_uris.split(","):
+            cleaned = item.strip()
+            if cleaned:
+                allowed.add(cleaned)
+        return frozenset(allowed)
 
     def get_sqlalchemy_database_url(self, *, use_app_role: bool = False) -> str:
         """Return psycopg-normalized SQLAlchemy URL for runtime or owner connections."""
@@ -93,13 +145,24 @@ class BaseAppSettings(BaseSettings):
                 self.app_database_url.get_secret_value() if self.app_database_url else None
             ),
             "redis_url": self.redis_url.get_secret_value(),
-            "s3_endpoint": self.s3_endpoint,
+            "s3_internal_endpoint_url": self.get_s3_internal_endpoint_url(),
+            "s3_public_endpoint_url": self.get_s3_public_endpoint_url(),
             "s3_bucket": self.s3_bucket,
             "temporal_address": self.temporal_address,
             "secret_store_backend": self.secret_store_backend,
             "app_jwt_secret_configured": bool(self.app_jwt_secret.get_secret_value()),
+            "session_cookie_secure": True if not self.is_dev_env() else self.session_cookie_secure,
             "meta_app_id": self.meta_app_id,
             "meta_app_secret_configured": bool(self.meta_app_secret.get_secret_value()),
+            "supabase_url_configured": bool(self.next_public_supabase_url.strip()),
+            "supabase_service_role_configured": bool(
+                self.supabase_service_role_key.get_secret_value().strip()
+            ),
+            "supabase_jwt_secret_configured": bool(
+                self.supabase_jwt_secret.get_secret_value().strip()
+            ),
+            "cloudflare_account_configured": bool(self.cloudflare_account_id.strip()),
+            "sentry_dsn_configured": bool(self.sentry_dsn.strip()),
         }
         scrubbed = scrub_secrets(raw)
         return scrubbed if isinstance(scrubbed, dict) else {}

@@ -37,6 +37,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     full_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
@@ -49,7 +50,9 @@ class User(Base):
 class UserIdentity(Base):
     __tablename__ = "user_identities"
     __table_args__ = (
-        CheckConstraint("provider IN ('email', 'meta')", name="ck_user_identities_provider"),
+        CheckConstraint(
+            "provider IN ('email', 'meta', 'supabase')", name="ck_user_identities_provider"
+        ),
         UniqueConstraint(
             "provider", "provider_subject", name="uq_user_identities_provider_subject"
         ),

@@ -108,6 +108,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-metuse}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-metuse}
       APP_DATABASE_URL: postgresql://metuse_app:${METUSE_APP_PASSWORD:-change-me-app}@postgres:5432/${POSTGRES_DB:-metuse}
       REDIS_URL: redis://redis:6379/0
+      S3_INTERNAL_ENDPOINT_URL: http://minio:9000
+      S3_PUBLIC_ENDPOINT_URL: http://localhost:9000
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
@@ -115,6 +117,10 @@ services:
       TEMPORAL_ADDRESS: temporal:7233
       SECRET_STORE_BACKEND: ${SECRET_STORE_BACKEND:-env_dev}
       APP_JWT_SECRET: ${APP_JWT_SECRET:-dev-only-placeholder-secret}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      META_AUTH_MODE: ${META_AUTH_MODE:-mock_dev}
+      META_REDIRECT_URI: ${META_REDIRECT_URI:-http://localhost:3000/auth/meta/callback}
     ports:
       - "8000:8000"
     depends_on:

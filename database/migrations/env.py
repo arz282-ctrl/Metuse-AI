@@ -6,7 +6,7 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 
 from database.models import Base
 from packages.shared.config import BaseAppSettings, normalize_database_url
@@ -52,6 +52,20 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Ensure alembic_version.version_num accommodates descriptive revision IDs (>32 chars,
+        # e.g. 0002_harden_functions_search_path = 33 chars).
+        with connection.begin():
+            connection.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS alembic_version ("
+                    "version_num VARCHAR(128) NOT NULL, "
+                    "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+                )
+            )
+            connection.execute(
+                text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(128)")
+            )
+
         context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():

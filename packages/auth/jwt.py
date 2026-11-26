@@ -40,7 +40,7 @@ def encode_hs256_token(
     *,
     secret: str,
     ttl_seconds: int,
-    token_use: str = "session",
+    token_use: str = "session",  # noqa: S107
 ) -> str:
     """Encode an HS256 JWT with standard iat, exp, jti, and token_use claims."""
     if not secret:
