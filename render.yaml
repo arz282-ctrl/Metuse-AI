@@ -7,7 +7,7 @@ services:
     runtime: docker
     plan: free
     region: singapore
-    branch: feat/phase-1-runnable-foundation
+    branch: main
     dockerfilePath: ./infrastructure/docker/api.Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
