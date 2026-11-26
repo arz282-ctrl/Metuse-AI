@@ -1,8 +1,10 @@
 #!/bin/sh
 set -eu
 
+PORT="${PORT:-8000}"
+
 if [ -f /app/apps/api/main.py ]; then
-  exec uv run --no-sync uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
+  exec uv run --no-sync uvicorn apps.api.main:app --host 0.0.0.0 --port "$PORT"
 fi
 
 exec python -c '

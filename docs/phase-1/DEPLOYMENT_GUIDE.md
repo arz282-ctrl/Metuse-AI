@@ -35,7 +35,18 @@ npx wrangler pages deploy out --project-name=metuse-ai-web --branch=develop
 
 ---
 
-## 3. Supabase Provisioning & Migration Runbook
+## 3. FastAPI Preview API Hosting (Free Tier — Render Blueprint)
+
+`render.yaml` configures a zero-cost (`plan: free`) Docker web service using `infrastructure/docker/api.Dockerfile`:
+
+1. Open [Render Dashboard](https://dashboard.render.com/) → **New → Blueprint** → select `arz282-ctrl/Metuse-AI`.
+2. Enter the prompted secret env vars (`APP_DATABASE_URL` using the Supabase `metuse_app` `:6543` Supavisor pooler URL, `SUPABASE_URL`, `SUPABASE_JWKS_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`). `APP_JWT_SECRET` is auto-generated.
+3. Verify `GET https://<your-render-service>.onrender.com/healthz` and `/readyz` (`database: ok`).
+4. Set GitHub `preview` environment variable `PREVIEW_API_URL=https://<your-render-service>.onrender.com` and rebuild/deploy Cloudflare Pages (`apps/web/out`) so the live preview UI talks to the live API.
+
+---
+
+## 4. Supabase Provisioning & Migration Runbook
 
 1. Set `DATABASE_URL` (direct `:5432`, owner role) and `APP_DATABASE_URL` (Supavisor `:6543`, `metuse_app` non-superuser role) in `.env`.
 2. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server-only), and `SUPABASE_JWT_SECRET` (optional if using asymmetric JWKS).

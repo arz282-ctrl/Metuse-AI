@@ -12,6 +12,7 @@ RUN apt-get update \
     && pip install --no-cache-dir "uv>=0.5.0"
 
 COPY pyproject.toml uv.lock* README.md alembic.ini ./
+COPY apps/api ./apps/api
 COPY packages ./packages
 COPY database ./database
 COPY infrastructure/docker/api-entrypoint.sh /usr/local/bin/api-entrypoint.sh
@@ -22,6 +23,6 @@ RUN chmod +x /usr/local/bin/api-entrypoint.sh \
 EXPOSE 8000
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=10s \
-  CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
+  CMD sh -c 'curl -fsS "http://127.0.0.1:${PORT:-8000}/healthz"' || exit 1
 
 ENTRYPOINT ["/usr/local/bin/api-entrypoint.sh"]
