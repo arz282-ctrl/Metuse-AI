@@ -245,11 +245,14 @@ def verify_supabase_jwt_from_settings(
 ) -> SupabaseJwtClaims:
     """Verify a Supabase Auth JWT using BaseAppSettings (HS256 secret and/or JWKS URL)."""
     secret = settings.supabase_jwt_secret.get_secret_value().strip() or None
-    base_url = settings.next_public_supabase_url.strip().rstrip("/")
+    base_url = (settings.supabase_url or settings.next_public_supabase_url).strip().rstrip("/")
     expected_issuer = f"{base_url}/auth/v1" if base_url else None
     resolved_cache = jwks_cache
-    if resolved_cache is None and base_url:
-        resolved_cache = SupabaseJwksCache(build_supabase_jwks_url(base_url))
+    jwks_url = settings.supabase_jwks_url.strip() or (
+        build_supabase_jwks_url(base_url) if base_url else ""
+    )
+    if resolved_cache is None and jwks_url:
+        resolved_cache = SupabaseJwksCache(jwks_url)
     return verify_supabase_jwt(
         token,
         jwt_secret=secret,

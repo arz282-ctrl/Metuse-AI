@@ -48,6 +48,7 @@ from packages.tenancy import (
     update_workspace_member,
     upsert_brand_profile,
 )
+from packages.tenancy.db import is_supabase_transaction_pooler_url
 
 pytestmark = pytest.mark.integration
 
@@ -93,7 +94,9 @@ def owner_engine() -> Iterator[Engine]:
 
 @pytest.fixture(scope="module")
 def app_session_factory() -> Iterator[sessionmaker[Session]]:
-    engine = create_engine(_get_app_dsn(), future=True)
+    dsn = _get_app_dsn()
+    connect_args = {"prepare_threshold": None} if is_supabase_transaction_pooler_url(dsn) else {}
+    engine = create_engine(dsn, connect_args=connect_args, future=True)
     factory = create_session_factory(engine)
     try:
         yield factory

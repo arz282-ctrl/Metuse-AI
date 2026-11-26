@@ -513,3 +513,61 @@ def test_fastapi_endpoints_security_cors_rbac_and_supabase_jwks_auth() -> None:
         )
         assert denied_rbac.status_code == 403
         assert denied_rbac.json()["error"]["code"] == "PERMISSION_DENIED"
+
+
+def test_supabase_modern_env_keys_and_explicit_jwks_url() -> None:
+    """Verify SUPABASE_URL, SUPABASE_SECRET_KEY, and explicit SUPABASE_JWKS_URL precedence."""
+    from apps.api.deps import AppContainer
+
+    es_priv, es_jwk = _generate_ec_keypair("sb-modern-kid")
+    user_id = uuid4()
+    now = int(time.time())
+
+    settings = BaseAppSettings(
+        _env_file=None,
+        supabase_url="https://modern.supabase.co",
+        supabase_publishable_key="sb_publishable_dummy_key",
+        supabase_secret_key=SecretStr("sb_secret_super_sensitive_value"),
+        supabase_jwks_url="https://modern.supabase.co/auth/v1/.well-known/jwks.json",
+    )
+
+    # Secret scrubbing: never leak supabase_secret_key in safe_summary()
+    summary = settings.safe_summary()
+    assert summary["supabase_url_configured"] is True
+    assert summary["supabase_jwks_url_configured"] is True
+    assert summary["supabase_secret_key_configured"] is True
+    assert "sb_secret_super_sensitive_value" not in str(summary)
+
+    # AppContainer resolves explicit JWKS URL cleanly
+    container = AppContainer.from_settings(
+        settings,
+        session_factory=None,
+        session_store=InMemorySessionStore(),
+        enable_db=False,
+    )
+    assert container.supabase_jwks_cache is not None
+    assert (
+        container.supabase_jwks_cache.jwks_url
+        == "https://modern.supabase.co/auth/v1/.well-known/jwks.json"
+    )
+
+    # Token verification succeeds against explicit JWKS URL with issuer derived from SUPABASE_URL
+    cache = SupabaseJwksCache(
+        "https://modern.supabase.co/auth/v1/.well-known/jwks.json",
+        fetcher=lambda _url: {"keys": [es_jwk]},
+    )
+    token = jwt.encode(
+        {
+            "sub": str(user_id),
+            "email": "modern@metuse.ai",
+            "aud": "authenticated",
+            "iss": "https://modern.supabase.co/auth/v1",
+            "exp": now + 300,
+        },
+        es_priv,
+        algorithm="ES256",
+        headers={"kid": "sb-modern-kid"},
+    )
+    claims = verify_supabase_jwt_from_settings(token, settings, jwks_cache=cache)
+    assert claims.subject == user_id
+    assert claims.algorithm == "ES256"

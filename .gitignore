@@ -39,3 +39,6 @@ _tmp_work/
 
 # Local infra data
 infrastructure/**/data/
+
+# Local Supabase CLI state/exports (Alembic in database/migrations/ is single source of truth)
+supabase/

@@ -19,6 +19,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from database.seeds.seed_dev import seed_canonical_roles
 from packages.shared.config import BaseAppSettings, normalize_database_url
+from packages.tenancy.db import is_supabase_transaction_pooler_url
 
 pytestmark = pytest.mark.integration
 
@@ -74,7 +75,9 @@ def owner_engine() -> Iterator[Engine]:
 
 @pytest.fixture(scope="module")
 def app_engine() -> Iterator[Engine]:
-    engine = create_engine(_get_app_dsn(), future=True)
+    dsn = _get_app_dsn()
+    connect_args = {"prepare_threshold": None} if is_supabase_transaction_pooler_url(dsn) else {}
+    engine = create_engine(dsn, connect_args=connect_args, future=True)
     try:
         yield engine
     finally:

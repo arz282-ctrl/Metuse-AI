@@ -105,10 +105,12 @@ class AppContainer:
                 resolved_store = InMemorySessionStore()
 
         resolved_jwks = supabase_jwks_cache
-        if resolved_jwks is None and settings.next_public_supabase_url.strip():
-            resolved_jwks = SupabaseJwksCache(
-                build_supabase_jwks_url(settings.next_public_supabase_url)
-            )
+        resolved_sb_url = (settings.supabase_url or settings.next_public_supabase_url).strip()
+        resolved_jwks_url = settings.supabase_jwks_url.strip() or (
+            build_supabase_jwks_url(resolved_sb_url) if resolved_sb_url else ""
+        )
+        if resolved_jwks is None and resolved_jwks_url:
+            resolved_jwks = SupabaseJwksCache(resolved_jwks_url)
 
         return cls(
             settings=settings,

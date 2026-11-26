@@ -68,6 +68,10 @@ class BaseAppSettings(BaseSettings):
     # Supabase managed infrastructure (optional; server-only secrets never exposed to browser)
     next_public_supabase_url: str = ""
     next_public_supabase_anon_key: str = ""
+    supabase_url: str = ""
+    supabase_publishable_key: str = ""
+    supabase_secret_key: SecretStr = SecretStr("")
+    supabase_jwks_url: str = ""
     supabase_service_role_key: SecretStr = SecretStr("")
     supabase_jwt_secret: SecretStr = SecretStr("")
 
@@ -154,7 +158,13 @@ class BaseAppSettings(BaseSettings):
             "session_cookie_secure": True if not self.is_dev_env() else self.session_cookie_secure,
             "meta_app_id": self.meta_app_id,
             "meta_app_secret_configured": bool(self.meta_app_secret.get_secret_value()),
-            "supabase_url_configured": bool(self.next_public_supabase_url.strip()),
+            "supabase_url_configured": bool(
+                (self.supabase_url or self.next_public_supabase_url).strip()
+            ),
+            "supabase_jwks_url_configured": bool(self.supabase_jwks_url.strip()),
+            "supabase_secret_key_configured": bool(
+                self.supabase_secret_key.get_secret_value().strip()
+            ),
             "supabase_service_role_configured": bool(
                 self.supabase_service_role_key.get_secret_value().strip()
             ),
