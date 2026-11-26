@@ -46,6 +46,10 @@ _SENSITIVE_EXACT_KEYS = frozenset(
         "gemini_api_key",
         "kling_api_key",
         "muse_api_key",
+        "supabase_service_role_key",
+        "service_role_key",
+        "supabase_secret_key",
+        "cloudflare_api_token",
         "credentials",
         "credential",
     }
@@ -56,6 +60,7 @@ _SENSITIVE_SUFFIXES = (
     "_passwd",
     "_secret",
     "_secret_key",
+    "_service_role_key",
     "_token",
     "_api_key",
     "_private_key",
@@ -80,6 +85,7 @@ _JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{
 _META_TOKEN_RE = re.compile(r"\bEAA[A-Za-z0-9]{12,}\b")
 _PROVIDER_KEY_RE = re.compile(
     r"\b(?:sk-[A-Za-z0-9_-]{16,}|(?:sk|rk|pk)_(?:live|test|proj)_[A-Za-z0-9_-]{12,}"
+    r"|sb_secret_[A-Za-z0-9_-]{12,}|cfut_[A-Za-z0-9_-]{16,}"
     r"|AIza[0-9A-Za-z\-_]{20,}|gh[pousr]_[A-Za-z0-9]{20,})\b"
 )
 _URL_TOKEN_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+.\-]*://[^\s\"'<>)}\]]+")

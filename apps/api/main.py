@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, sessionmaker
 
 from apps.api.deps import AppContainer
+from apps.api.observability import init_sentry
 from apps.api.routes import audit, auth, clients, health, workspaces
 from packages.auth import SessionStore, SupabaseJwksCache
 from packages.shared.config import BaseAppSettings
@@ -27,6 +28,7 @@ def create_app(
 ) -> FastAPI:
     """Create and configure the Metuse AI FastAPI application."""
     resolved_settings = settings or BaseAppSettings()
+    init_sentry(resolved_settings)
     container = AppContainer.from_settings(
         resolved_settings,
         session_factory=session_factory,

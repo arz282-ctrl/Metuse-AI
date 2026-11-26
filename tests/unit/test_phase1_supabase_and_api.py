@@ -571,3 +571,25 @@ def test_supabase_modern_env_keys_and_explicit_jwks_url() -> None:
     claims = verify_supabase_jwt_from_settings(token, settings, jwks_cache=cache)
     assert claims.subject == user_id
     assert claims.algorithm == "ES256"
+
+
+def test_sentry_observability_noop_and_secret_scrubbing() -> None:
+    """Verify Sentry init skips empty/non-HTTP DSNs and scrubs sensitive keys before send."""
+    from apps.api.observability import _scrub_sentry_event, init_sentry
+
+    assert init_sentry(BaseAppSettings(_env_file=None, sentry_dsn="")) is False
+    assert init_sentry(BaseAppSettings(_env_file=None, sentry_dsn="disabled")) is False
+
+    raw_event: dict[str, Any] = {
+        "message": "Unhandled error",
+        "extra": {
+            "supabase_service_role_key": "sb_secret_live_value_123456",
+            "authorization": "Bearer top-secret-token",
+            "safe_field": "visible",
+        },
+    }
+    scrubbed = _scrub_sentry_event(raw_event, {})  # type: ignore[arg-type]
+    assert scrubbed is not None
+    assert "sb_secret_live_value_123456" not in str(scrubbed)
+    assert "top-secret-token" not in str(scrubbed)
+    assert scrubbed["extra"]["safe_field"] == "visible"
