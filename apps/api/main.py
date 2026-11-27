@@ -21,6 +21,7 @@ from apps.api.routes import (
     editing,
     health,
     jobs,
+    meta,
     projects,
     video,
     workspaces,
@@ -117,6 +118,7 @@ def create_app(
     app.include_router(video.router)
     app.include_router(editing.router)
     app.include_router(approvals.router)
+    app.include_router(meta.router)
     app.include_router(audit.router)
     return app
 

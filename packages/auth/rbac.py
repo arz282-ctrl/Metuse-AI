@@ -20,6 +20,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "projects:*",
             "editing:*",
             "approvals:*",
+            "meta:*",
             "usage:read",
             "budgets:*",
             "audit:read",
@@ -37,6 +38,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "projects:*",
             "editing:*",
             "approvals:*",
+            "meta:*",
             "usage:read",
             "budgets:manage",
             "audit:read",
@@ -60,6 +62,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "editing:write",
             "approvals:read",
             "approvals:write",
+            "meta:read",
             "usage:read",
         }
     ),
@@ -74,6 +77,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "projects:*",
             "editing:*",
             "approvals:*",
+            "meta:*",
             "usage:read",
             "budgets:*",
             "audit:read",
@@ -90,6 +94,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "editing:read",
             "approvals:read",
             "approvals:decide",
+            "meta:read",
             "deliverables:approve",
         }
     ),
@@ -103,6 +108,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "projects:read",
             "editing:read",
             "approvals:read",
+            "meta:read",
         }
     ),
 }

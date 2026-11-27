@@ -9,6 +9,7 @@ import {
   Film,
   FolderKanban,
   LayoutDashboard,
+  Link2,
   LogOut,
   Menu,
   PlusCircle,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { href: "/jobs", label: "AI Workers", icon: FolderKanban },
   { href: "/video", label: "Video Studio", icon: Film },
   { href: "/studio", label: "Cloud Studio", icon: Clapperboard },
+  { href: "/connections", label: "Connections", icon: Link2 },
   { href: "/onboarding/workspace", label: "New Workspace", icon: Building2 },
   { href: "/onboarding/client", label: "New Client", icon: PlusCircle },
 ];
@@ -59,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <p className="text-sm font-semibold tracking-tight">Metuse AI</p>
-              <p className="text-[11px] text-muted-foreground">Agency OS · Phase 4</p>
+              <p className="text-[11px] text-muted-foreground">Agency OS · Phase 5</p>
             </div>
           </Link>
           <button

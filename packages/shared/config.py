@@ -107,6 +107,12 @@ class BaseAppSettings(BaseSettings):
     render_cost_per_second_usd: float = 0.01
     ucuts_repo_path: str = ""
 
+    # Meta Graph / Instagram Unified Login (Phase 5 — strictly separate from Meta Muse)
+    meta_connections_mode: str = "mock"
+    meta_graph_api_version: str = "v22.0"
+    meta_graph_base_url: str = "https://graph.facebook.com"
+    meta_secret_encryption_key: SecretStr = SecretStr("")
+
     def is_dev_env(self) -> bool:
         """Return True only when APP_ENV is an explicit development/local/test value."""
         normalized = self.app_env.strip().lower()
@@ -212,6 +218,11 @@ class BaseAppSettings(BaseSettings):
             ),
             "render_mode": self.render_mode,
             "render_kill_switch": self.render_kill_switch,
+            "meta_connections_mode": self.meta_connections_mode,
+            "meta_graph_api_version": self.meta_graph_api_version,
+            "meta_secret_encryption_key_configured": bool(
+                self.meta_secret_encryption_key.get_secret_value().strip()
+            ),
         }
         scrubbed = scrub_secrets(raw)
         return scrubbed if isinstance(scrubbed, dict) else {}

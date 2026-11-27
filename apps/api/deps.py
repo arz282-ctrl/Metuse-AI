@@ -25,6 +25,13 @@ from packages.auth import (
     verify_supabase_jwt_from_settings,
 )
 from packages.media_engine import CloudEditingService, RenderBackend, create_render_backend
+from packages.meta_integrations import (
+    EncryptedSecretStore,
+    MetaConnectionService,
+    MetaGraphClient,
+    SecretStore,
+    create_meta_graph_client,
+)
 from packages.muse_adapter import MuseAdapter, create_muse_adapter
 from packages.shared.config import BaseAppSettings
 from packages.shared.enums import ErrorCode
@@ -88,6 +95,8 @@ class AppContainer:
     video_registry: VideoGatewayRegistry
     video_service: VideoGatewayService
     editing_service: CloudEditingService
+    secret_store: SecretStore
+    meta_service: MetaConnectionService
     supabase_jwks_cache: SupabaseJwksCache | None = None
 
     @classmethod
@@ -103,6 +112,8 @@ class AppContainer:
         storage: StorageBackend | None = None,
         video_registry: VideoGatewayRegistry | None = None,
         render_backend: RenderBackend | None = None,
+        meta_graph_client: MetaGraphClient | None = None,
+        secret_store: SecretStore | None = None,
         enable_db: bool = True,
     ) -> AppContainer:
         resolved_factory = session_factory
@@ -158,6 +169,13 @@ class AppContainer:
             storage=resolved_storage,
             renderer=resolved_renderer,
         )
+        resolved_secret_store = secret_store or EncryptedSecretStore.from_settings(settings)
+        resolved_meta_client = meta_graph_client or create_meta_graph_client(settings)
+        resolved_meta_service = MetaConnectionService(
+            settings=settings,
+            graph_client=resolved_meta_client,
+            secret_store=resolved_secret_store,
+        )
 
         return cls(
             settings=settings,
@@ -170,6 +188,8 @@ class AppContainer:
             video_registry=resolved_video_registry,
             video_service=resolved_video_service,
             editing_service=resolved_editing_service,
+            secret_store=resolved_secret_store,
+            meta_service=resolved_meta_service,
             supabase_jwks_cache=resolved_jwks,
         )
 
