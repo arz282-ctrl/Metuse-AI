@@ -9,17 +9,55 @@ from packages.shared.errors import PermissionDeniedError
 
 ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
     RoleName.AGENCY_OWNER: frozenset(
-        {"workspace:*", "members:*", "clients:*", "brand:*", "audit:read"}
+        {
+            "workspace:*",
+            "members:*",
+            "clients:*",
+            "brand:*",
+            "jobs:*",
+            "usage:read",
+            "budgets:*",
+            "audit:read",
+        }
     ),
     RoleName.AGENCY_ADMIN: frozenset(
-        {"workspace:read", "members:manage", "clients:*", "brand:*", "audit:read"}
+        {
+            "workspace:read",
+            "members:manage",
+            "clients:*",
+            "brand:*",
+            "jobs:*",
+            "usage:read",
+            "budgets:manage",
+            "audit:read",
+        }
     ),
     RoleName.AGENCY_MEMBER: frozenset(
-        {"workspace:read", "clients:read", "brand:read", "brand:write"}
+        {
+            "workspace:read",
+            "clients:read",
+            "brand:read",
+            "brand:write",
+            "jobs:read",
+            "jobs:write",
+            "usage:read",
+        }
     ),
-    RoleName.CREATOR_OWNER: frozenset({"workspace:*", "clients:*", "brand:*", "audit:read"}),
-    RoleName.CLIENT_REVIEWER: frozenset({"client:read", "brand:read", "deliverables:approve"}),
-    RoleName.CLIENT_VIEWER: frozenset({"client:read", "brand:read"}),
+    RoleName.CREATOR_OWNER: frozenset(
+        {
+            "workspace:*",
+            "clients:*",
+            "brand:*",
+            "jobs:*",
+            "usage:read",
+            "budgets:*",
+            "audit:read",
+        }
+    ),
+    RoleName.CLIENT_REVIEWER: frozenset(
+        {"client:read", "brand:read", "jobs:read", "deliverables:approve"}
+    ),
+    RoleName.CLIENT_VIEWER: frozenset({"client:read", "brand:read", "jobs:read"}),
 }
 
 
@@ -37,6 +75,8 @@ def _matches_permission(granted: str, required: str) -> bool:
         if required.startswith(prefix):
             return True
     if granted == "members:manage" and required.startswith("members:"):
+        return True
+    if granted == "budgets:manage" and required.startswith("budgets:"):
         return True
     if granted == "brand:write" and required in {"brand:write", "brand:read"}:
         return True

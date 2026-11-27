@@ -7,6 +7,10 @@ import type {
   ClientRecord,
   ClientStatus,
   MembershipSummary,
+  SkillCatalogItem,
+  UsageSummaryRecord,
+  WorkerJobRecord,
+  WorkerTaskType,
   Workspace,
   WorkspaceType,
 } from "@/lib/types";
@@ -156,4 +160,40 @@ export const apiClient = {
     request<AuditLogListResponse>(
       `/api/v1/workspaces/${workspaceId}/audit-logs?limit=${limit}`
     ),
+
+  listSkills: (workspaceId: string) =>
+    request<SkillCatalogItem[]>(`/api/v1/workspaces/${workspaceId}/skills`),
+
+  listJobs: (workspaceId: string, limit = 20) =>
+    request<WorkerJobRecord[]>(`/api/v1/workspaces/${workspaceId}/jobs?limit=${limit}`),
+
+  runWorkerJob: (
+    workspaceId: string,
+    clientId: string,
+    taskType: WorkerTaskType,
+    input: { topic: string; constraints?: Record<string, unknown> },
+    idempotencyKey?: string
+  ) => {
+    const endpointMap: Record<WorkerTaskType, string> = {
+      research: "research-jobs",
+      writing: "writing-jobs",
+      seo_aeo: "seo-aeo-jobs",
+      media_plan: "media-plan-jobs",
+    };
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) {
+      headers["Idempotency-Key"] = idempotencyKey;
+    }
+    return request<WorkerJobRecord>(
+      `/api/v1/workspaces/${workspaceId}/clients/${clientId}/${endpointMap[taskType]}`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(input),
+      }
+    );
+  },
+
+  getUsage: (workspaceId: string) =>
+    request<UsageSummaryRecord>(`/api/v1/workspaces/${workspaceId}/usage`),
 };

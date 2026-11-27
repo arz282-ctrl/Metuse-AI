@@ -127,6 +127,21 @@ class ValidationDomainError(MetuseError):
     default_status_code = 422
 
 
+class BudgetExceededError(MetuseError):
+    default_code = ErrorCode.BUDGET_EXCEEDED
+    default_status_code = 429
+
+
+class CapabilityNotSupportedError(MetuseError):
+    default_code = ErrorCode.CAPABILITY_NOT_SUPPORTED
+    default_status_code = 422
+
+
+class ProviderDisabledError(MetuseError):
+    default_code = ErrorCode.PROVIDER_DISABLED
+    default_status_code = 503
+
+
 class ExternalServiceError(MetuseError):
     default_code = ErrorCode.EXTERNAL_SERVICE_ERROR
     default_status_code = 502

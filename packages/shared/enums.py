@@ -43,6 +43,37 @@ class IdentityProvider(StrEnum):
 
     EMAIL = "email"
     META = "meta"
+    SUPABASE = "supabase"
+
+
+class WorkerTaskType(StrEnum):
+    """Supported Phase 2 specialist worker task types."""
+
+    RESEARCH = "research"
+    WRITING = "writing"
+    SEO_AEO = "seo_aeo"
+    MEDIA_PLAN = "media_plan"
+
+
+class WorkerJobStatus(StrEnum):
+    """Lifecycle states for specialist AI worker jobs."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    NEEDS_REVIEW = "needs_review"
+
+
+class MuseCapability(StrEnum):
+    """Capabilities actually exposed by the Meta Model API / Muse layer (no video generation)."""
+
+    REASONING_TOOL_USE = "reasoning_tool_use"
+    REASONING_STRUCTURED_OUTPUT = "reasoning_structured_output"
+    IMAGE_GENERATION = "image_generation"
+    IMAGE_EDIT = "image_edit"
+    AUDIO_TRANSCRIPTION = "audio_transcription"
+    SEGMENTATION = "segmentation"
 
 
 class BrandAssetType(StrEnum):
@@ -75,6 +106,10 @@ class AuditAction(StrEnum):
     BRAND_PROFILE_UPSERTED = "brand_profile.upserted"
     BRAND_ASSET_CREATED = "brand_asset.created"
     BRAND_ASSET_ACCESSED = "brand_asset.accessed"
+    WORKER_JOB_CREATED = "worker_job.created"
+    WORKER_JOB_COMPLETED = "worker_job.completed"
+    WORKER_JOB_FAILED = "worker_job.failed"
+    WORKSPACE_BUDGET_UPDATED = "workspace_budget.updated"
 
 
 class ErrorCode(StrEnum):
@@ -91,6 +126,11 @@ class ErrorCode(StrEnum):
     EMAIL_ALREADY_EXISTS = "EMAIL_ALREADY_EXISTS"
     WORKSPACE_MEMBER_LIMIT_EXCEEDED = "WORKSPACE_MEMBER_LIMIT_EXCEEDED"
     IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT"
+    BUDGET_EXCEEDED = "BUDGET_EXCEEDED"
+    CAPABILITY_NOT_SUPPORTED = "CAPABILITY_NOT_SUPPORTED"
+    PROVIDER_DISABLED = "PROVIDER_DISABLED"
+    INVALID_TASK_TYPE = "INVALID_TASK_TYPE"
+    SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
     VALIDATION_ERROR = "VALIDATION_ERROR"
     EXTERNAL_SERVICE_ERROR = "EXTERNAL_SERVICE_ERROR"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
