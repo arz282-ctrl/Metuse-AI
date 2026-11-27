@@ -482,6 +482,12 @@ class UsageRecord(Base):
             name="fk_usage_records_ws_job",
             ondelete="SET NULL",
         ),
+        ForeignKeyConstraint(
+            ["workspace_id", "video_job_id"],
+            ["video_generation_jobs.workspace_id", "video_generation_jobs.id"],
+            name="fk_usage_records_ws_video_job",
+            ondelete="SET NULL",
+        ),
         Index("ix_usage_records_ws_period", "workspace_id", "billing_period"),
         Index("ix_usage_records_ws_client_period", "workspace_id", "client_id", "billing_period"),
     )
@@ -494,6 +500,7 @@ class UsageRecord(Base):
     )
     client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     worker_job_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    video_job_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     model_run_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     provider: Mapped[str] = mapped_column(Text, nullable=False)
     model: Mapped[str] = mapped_column(Text, nullable=False)
@@ -609,6 +616,301 @@ class ResearchSource(Base):
         Numeric(4, 3), nullable=False, server_default=text("0.500")
     )
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class Project(Base):
+    __tablename__ = "projects"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'active', 'archived')", name="ck_projects_status"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_projects_ws_client",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_projects_ws_id"),
+        UniqueConstraint("workspace_id", "slug", name="uq_projects_ws_slug"),
+        Index("ix_projects_ws_client", "workspace_id", "client_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    slug: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'active'"))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class Asset(Base):
+    __tablename__ = "assets"
+    __table_args__ = (
+        CheckConstraint(
+            "asset_kind IN ('image', 'video', 'audio', 'document')",
+            name="ck_assets_kind",
+        ),
+        CheckConstraint(
+            "source_type IN ('upload', 'video_generation', 'brand', 'render')",
+            name="ck_assets_source_type",
+        ),
+        CheckConstraint(
+            "status IN ('ready', 'pending', 'deleted')",
+            name="ck_assets_status",
+        ),
+        CheckConstraint("size_bytes >= 0", name="ck_assets_size_bytes"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_assets_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            name="fk_assets_ws_project",
+            ondelete="SET NULL",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_assets_ws_id"),
+        UniqueConstraint("storage_bucket", "storage_key", name="uq_assets_bucket_key"),
+        Index("ix_assets_ws_client_created", "workspace_id", "client_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    project_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    asset_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    source_type: Mapped[str] = mapped_column(Text, nullable=False)
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    mime_type: Mapped[str] = mapped_column(Text, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    storage_bucket: Mapped[str] = mapped_column(Text, nullable=False)
+    storage_key: Mapped[str] = mapped_column(Text, nullable=False)
+    duration_seconds: Mapped[Decimal | None] = mapped_column(Numeric(10, 3), nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sha256: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'ready'"))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class VideoProviderModel(Base):
+    __tablename__ = "video_provider_models"
+    __table_args__ = (
+        CheckConstraint(
+            "quality_tier IN ('standard', 'high')",
+            name="ck_video_provider_models_quality",
+        ),
+        CheckConstraint("cost_per_second_usd >= 0", name="ck_video_provider_models_cost"),
+        UniqueConstraint("provider", "model", name="uq_video_provider_models_provider_model"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    modes: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    aspect_ratios: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    durations_seconds: Mapped[list[int]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    resolutions: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    max_reference_images: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    audio_generation: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    webhook_support: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    regions: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    cost_per_second_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, server_default=text("0")
+    )
+    quality_tier: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'standard'")
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class VideoGenerationJob(Base):
+    __tablename__ = "video_generation_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "mode IN ('text_to_video', 'image_to_video')",
+            name="ck_video_generation_jobs_mode",
+        ),
+        CheckConstraint(
+            "status IN ('queued', 'validating', 'submitted', 'processing', "
+            "'succeeded', 'failed', 'cancelled')",
+            name="ck_video_generation_jobs_status",
+        ),
+        CheckConstraint(
+            "progress_pct BETWEEN 0 AND 100",
+            name="ck_video_generation_jobs_progress",
+        ),
+        CheckConstraint("duration_seconds > 0", name="ck_video_generation_jobs_duration"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_video_generation_jobs_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            name="fk_video_generation_jobs_ws_project",
+            ondelete="SET NULL",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_video_generation_jobs_ws_id"),
+        Index("ix_video_generation_jobs_ws_created", "workspace_id", "created_at"),
+        Index("ix_video_generation_jobs_ws_status", "workspace_id", "status"),
+        Index("ix_video_generation_jobs_provider_job", "provider", "provider_job_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    project_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    actor_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    mode: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    provider_job_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'queued'"))
+    progress_pct: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    aspect_ratio: Mapped[str] = mapped_column(Text, nullable=False)
+    duration_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    resolution: Mapped[str] = mapped_column(Text, nullable=False)
+    audio_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    brand_constraints: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    provider_preference: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'auto'")
+    )
+    request_params: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    input_asset_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    output_asset_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    failure_category: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provider_error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    poll_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    next_poll_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    actual_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class VideoProviderEvent(Base):
+    __tablename__ = "video_provider_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('state_transition', 'webhook', 'poll', 'cancel', 'error')",
+            name="ck_video_provider_events_type",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "video_job_id"],
+            ["video_generation_jobs.workspace_id", "video_generation_jobs.id"],
+            name="fk_video_provider_events_ws_job",
+            ondelete="CASCADE",
+        ),
+        Index(
+            "ix_video_provider_events_ws_job_created", "workspace_id", "video_job_id", "created_at"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    video_job_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    provider_event_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    from_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    to_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

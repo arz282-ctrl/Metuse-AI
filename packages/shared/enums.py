@@ -87,6 +87,55 @@ class BrandAssetType(StrEnum):
     OTHER = "other"
 
 
+class VideoGenerationMode(StrEnum):
+    """Supported unified video generation gateway modes."""
+
+    TEXT_TO_VIDEO = "text_to_video"
+    IMAGE_TO_VIDEO = "image_to_video"
+
+
+class VideoJobStatus(StrEnum):
+    """Provider-independent video generation job state machine states."""
+
+    QUEUED = "queued"
+    VALIDATING = "validating"
+    SUBMITTED = "submitted"
+    PROCESSING = "processing"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class VideoFailureCategory(StrEnum):
+    """Normalized provider-independent video generation failure categories."""
+
+    VALIDATION = "validation"
+    CAPABILITY = "capability"
+    RATE_LIMITED = "rate_limited"
+    PROVIDER_ERROR = "provider_error"
+    TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
+    BUDGET = "budget"
+
+
+class AssetKind(StrEnum):
+    """Canonical media asset kinds stored in private tenant object storage."""
+
+    IMAGE = "image"
+    VIDEO = "video"
+    AUDIO = "audio"
+    DOCUMENT = "document"
+
+
+class AssetSourceType(StrEnum):
+    """Provenance of a tenant-owned asset record."""
+
+    UPLOAD = "upload"
+    VIDEO_GENERATION = "video_generation"
+    BRAND = "brand"
+    RENDER = "render"
+
+
 class AuditAction(StrEnum):
     """Canonical append-only audit log action identifiers."""
 
@@ -110,6 +159,12 @@ class AuditAction(StrEnum):
     WORKER_JOB_COMPLETED = "worker_job.completed"
     WORKER_JOB_FAILED = "worker_job.failed"
     WORKSPACE_BUDGET_UPDATED = "workspace_budget.updated"
+    PROJECT_CREATED = "project.created"
+    ASSET_CREATED = "asset.created"
+    VIDEO_JOB_CREATED = "video_job.created"
+    VIDEO_JOB_COMPLETED = "video_job.completed"
+    VIDEO_JOB_FAILED = "video_job.failed"
+    VIDEO_JOB_CANCELLED = "video_job.cancelled"
 
 
 class ErrorCode(StrEnum):
@@ -129,6 +184,9 @@ class ErrorCode(StrEnum):
     BUDGET_EXCEEDED = "BUDGET_EXCEEDED"
     CAPABILITY_NOT_SUPPORTED = "CAPABILITY_NOT_SUPPORTED"
     PROVIDER_DISABLED = "PROVIDER_DISABLED"
+    NO_ELIGIBLE_PROVIDER = "NO_ELIGIBLE_PROVIDER"
+    INVALID_STATE_TRANSITION = "INVALID_STATE_TRANSITION"
+    WEBHOOK_SIGNATURE_INVALID = "WEBHOOK_SIGNATURE_INVALID"
     INVALID_TASK_TYPE = "INVALID_TASK_TYPE"
     SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
     VALIDATION_ERROR = "VALIDATION_ERROR"

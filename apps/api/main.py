@@ -12,12 +12,24 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from apps.api.deps import AppContainer
 from apps.api.observability import init_sentry
-from apps.api.routes import audit, auth, brand, clients, health, jobs, workspaces
+from apps.api.routes import (
+    audit,
+    auth,
+    brand,
+    clients,
+    health,
+    jobs,
+    projects,
+    video,
+    workspaces,
+)
 from packages.auth import SessionStore, SupabaseJwksCache
 from packages.muse_adapter import MuseAdapter
 from packages.shared.config import BaseAppSettings
 from packages.shared.errors import MetuseError
 from packages.skill_runtime import SkillRegistry
+from packages.storage import StorageBackend
+from packages.video_gateway import VideoGatewayRegistry
 
 
 def create_app(
@@ -28,6 +40,8 @@ def create_app(
     supabase_jwks_cache: SupabaseJwksCache | None = None,
     skill_registry: SkillRegistry | None = None,
     muse_adapter: MuseAdapter | None = None,
+    storage: StorageBackend | None = None,
+    video_registry: VideoGatewayRegistry | None = None,
     enable_db: bool = True,
 ) -> FastAPI:
     """Create and configure the Metuse AI FastAPI application."""
@@ -40,6 +54,8 @@ def create_app(
         supabase_jwks_cache=supabase_jwks_cache,
         skill_registry=skill_registry,
         muse_adapter=muse_adapter,
+        storage=storage,
+        video_registry=video_registry,
         enable_db=enable_db,
     )
 
@@ -92,6 +108,8 @@ def create_app(
     app.include_router(clients.router)
     app.include_router(brand.router)
     app.include_router(jobs.router)
+    app.include_router(projects.router)
+    app.include_router(video.router)
     app.include_router(audit.router)
     return app
 

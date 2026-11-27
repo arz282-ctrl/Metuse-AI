@@ -88,6 +88,17 @@ class BaseAppSettings(BaseSettings):
     muse_max_retries: int = 2
     muse_kill_switch: bool = False
 
+    # Unified Video Generation Gateway (strictly independent of Meta Muse)
+    video_gateway_mode: str = "mock"
+    video_kill_switch: bool = False
+    runway_base_url: str = "https://api.dev.runwayml.com/v1"
+    runway_api_version: str = "2024-11-06"
+    runway_api_key: SecretStr = SecretStr("")
+    runway_webhook_secret: SecretStr = SecretStr("")
+    video_poll_base_delay_seconds: float = 2.0
+    video_poll_max_delay_seconds: float = 60.0
+    video_max_poll_attempts: int = 30
+
     def is_dev_env(self) -> bool:
         """Return True only when APP_ENV is an explicit development/local/test value."""
         normalized = self.app_env.strip().lower()
@@ -185,6 +196,12 @@ class BaseAppSettings(BaseSettings):
             "muse_mode": self.muse_mode,
             "muse_api_key_configured": bool(self.muse_api_key.get_secret_value().strip()),
             "muse_kill_switch": self.muse_kill_switch,
+            "video_gateway_mode": self.video_gateway_mode,
+            "video_kill_switch": self.video_kill_switch,
+            "runway_api_key_configured": bool(self.runway_api_key.get_secret_value().strip()),
+            "runway_webhook_secret_configured": bool(
+                self.runway_webhook_secret.get_secret_value().strip()
+            ),
         }
         scrubbed = scrub_secrets(raw)
         return scrubbed if isinstance(scrubbed, dict) else {}

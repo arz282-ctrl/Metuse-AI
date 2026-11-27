@@ -15,6 +15,9 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "clients:*",
             "brand:*",
             "jobs:*",
+            "video:*",
+            "assets:*",
+            "projects:*",
             "usage:read",
             "budgets:*",
             "audit:read",
@@ -27,6 +30,9 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "clients:*",
             "brand:*",
             "jobs:*",
+            "video:*",
+            "assets:*",
+            "projects:*",
             "usage:read",
             "budgets:manage",
             "audit:read",
@@ -40,6 +46,12 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "brand:write",
             "jobs:read",
             "jobs:write",
+            "video:read",
+            "video:write",
+            "assets:read",
+            "assets:write",
+            "projects:read",
+            "projects:write",
             "usage:read",
         }
     ),
@@ -49,15 +61,35 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "clients:*",
             "brand:*",
             "jobs:*",
+            "video:*",
+            "assets:*",
+            "projects:*",
             "usage:read",
             "budgets:*",
             "audit:read",
         }
     ),
     RoleName.CLIENT_REVIEWER: frozenset(
-        {"client:read", "brand:read", "jobs:read", "deliverables:approve"}
+        {
+            "client:read",
+            "brand:read",
+            "jobs:read",
+            "video:read",
+            "assets:read",
+            "projects:read",
+            "deliverables:approve",
+        }
     ),
-    RoleName.CLIENT_VIEWER: frozenset({"client:read", "brand:read", "jobs:read"}),
+    RoleName.CLIENT_VIEWER: frozenset(
+        {
+            "client:read",
+            "brand:read",
+            "jobs:read",
+            "video:read",
+            "assets:read",
+            "projects:read",
+        }
+    ),
 }
 
 

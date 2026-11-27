@@ -29,7 +29,13 @@ from packages.shared.config import BaseAppSettings
 from packages.shared.enums import ErrorCode
 from packages.shared.errors import AuthenticationError, MetuseError
 from packages.skill_runtime import SkillRegistry
+from packages.storage import InMemoryStorageBackend, S3StorageBackend, StorageBackend
 from packages.tenancy import create_app_engine, create_session_factory, rls_transaction
+from packages.video_gateway import (
+    VideoGatewayRegistry,
+    VideoGatewayService,
+    build_default_video_registry,
+)
 
 
 @dataclass(frozen=True)
@@ -77,6 +83,9 @@ class AppContainer:
     auth_rate_limiter: InMemoryRateLimiter
     skill_registry: SkillRegistry
     muse_adapter: MuseAdapter
+    storage: StorageBackend
+    video_registry: VideoGatewayRegistry
+    video_service: VideoGatewayService
     supabase_jwks_cache: SupabaseJwksCache | None = None
 
     @classmethod
@@ -89,6 +98,8 @@ class AppContainer:
         supabase_jwks_cache: SupabaseJwksCache | None = None,
         skill_registry: SkillRegistry | None = None,
         muse_adapter: MuseAdapter | None = None,
+        storage: StorageBackend | None = None,
+        video_registry: VideoGatewayRegistry | None = None,
         enable_db: bool = True,
     ) -> AppContainer:
         resolved_factory = session_factory
@@ -118,6 +129,27 @@ class AppContainer:
         if resolved_jwks is None and resolved_jwks_url:
             resolved_jwks = SupabaseJwksCache(resolved_jwks_url)
 
+        resolved_storage: StorageBackend
+        if storage is not None:
+            resolved_storage = storage
+        elif (
+            settings.s3_access_key.get_secret_value().strip()
+            and settings.s3_secret_key.get_secret_value().strip()
+        ):
+            resolved_storage = S3StorageBackend.from_settings(settings)
+        else:
+            resolved_storage = InMemoryStorageBackend(
+                bucket=settings.s3_bucket,
+                public_endpoint_url=settings.get_s3_public_endpoint_url(),
+            )
+
+        resolved_video_registry = video_registry or build_default_video_registry(settings)
+        resolved_video_service = VideoGatewayService(
+            settings=settings,
+            registry=resolved_video_registry,
+            storage=resolved_storage,
+        )
+
         return cls(
             settings=settings,
             session_factory=resolved_factory,
@@ -125,6 +157,9 @@ class AppContainer:
             auth_rate_limiter=InMemoryRateLimiter(max_requests=30, window_seconds=60),
             skill_registry=skill_registry or SkillRegistry(),
             muse_adapter=muse_adapter or create_muse_adapter(settings),
+            storage=resolved_storage,
+            video_registry=resolved_video_registry,
+            video_service=resolved_video_service,
             supabase_jwks_cache=resolved_jwks,
         )
 
