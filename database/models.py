@@ -488,6 +488,12 @@ class UsageRecord(Base):
             name="fk_usage_records_ws_video_job",
             ondelete="SET NULL",
         ),
+        ForeignKeyConstraint(
+            ["workspace_id", "render_job_id"],
+            ["render_jobs.workspace_id", "render_jobs.id"],
+            name="fk_usage_records_ws_render_job",
+            ondelete="SET NULL",
+        ),
         Index("ix_usage_records_ws_period", "workspace_id", "billing_period"),
         Index("ix_usage_records_ws_client_period", "workspace_id", "client_id", "billing_period"),
     )
@@ -501,6 +507,7 @@ class UsageRecord(Base):
     client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     worker_job_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     video_job_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    render_job_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     model_run_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     provider: Mapped[str] = mapped_column(Text, nullable=False)
     model: Mapped[str] = mapped_column(Text, nullable=False)
@@ -911,6 +918,368 @@ class VideoProviderEvent(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class MediaMetadata(Base):
+    __tablename__ = "media_metadata"
+    __table_args__ = (
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_media_meta_duration"),
+        CheckConstraint("width IS NULL OR width > 0", name="ck_media_meta_width"),
+        CheckConstraint("height IS NULL OR height > 0", name="ck_media_meta_height"),
+        ForeignKeyConstraint(
+            ["workspace_id", "asset_id"],
+            ["assets.workspace_id", "assets.id"],
+            name="fk_media_metadata_ws_asset",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "proxy_asset_id"],
+            ["assets.workspace_id", "assets.id"],
+            name="fk_media_metadata_ws_proxy_asset",
+            ondelete="SET NULL",
+        ),
+        UniqueConstraint("workspace_id", "asset_id", name="uq_media_metadata_ws_asset"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    asset_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    proxy_asset_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    container: Mapped[str | None] = mapped_column(Text, nullable=True)
+    video_codec: Mapped[str | None] = mapped_column(Text, nullable=True)
+    audio_codec: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fps: Mapped[Decimal | None] = mapped_column(Numeric(8, 3), nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bitrate_bps: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    has_audio: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    probe_payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class EditingPlan(Base):
+    __tablename__ = "editing_plans"
+    __table_args__ = (
+        CheckConstraint("version_number > 0", name="ck_editing_plans_version"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_editing_plans_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            name="fk_editing_plans_ws_project",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_editing_plans_ws_id"),
+        UniqueConstraint(
+            "workspace_id", "project_id", "version_number", name="uq_editing_plans_project_version"
+        ),
+        Index("ix_editing_plans_ws_project", "workspace_id", "project_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    project_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'1'"))
+    plan_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    plan_sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class RenderJob(Base):
+    __tablename__ = "render_jobs"
+    __table_args__ = (
+        CheckConstraint("render_kind IN ('preview', 'final')", name="ck_render_jobs_kind"),
+        CheckConstraint(
+            "status IN ('queued', 'validating', 'rendering', 'qa_checking', "
+            "'succeeded', 'qa_failed', 'failed', 'cancelled')",
+            name="ck_render_jobs_status",
+        ),
+        CheckConstraint("cpu_time_ms >= 0", name="ck_render_jobs_cpu_time"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_render_jobs_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            name="fk_render_jobs_ws_project",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "editing_plan_id"],
+            ["editing_plans.workspace_id", "editing_plans.id"],
+            name="fk_render_jobs_ws_plan",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "output_asset_id"],
+            ["assets.workspace_id", "assets.id"],
+            name="fk_render_jobs_ws_output_asset",
+            ondelete="SET NULL",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_render_jobs_ws_id"),
+        Index("ix_render_jobs_ws_project_created", "workspace_id", "project_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    project_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    editing_plan_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    actor_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    render_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'queued'"))
+    idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    renderer: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'mock'"))
+    command_manifest: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    output_asset_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    qa_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    qa_report: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cpu_time_ms: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class CreativeVersion(Base):
+    __tablename__ = "creative_versions"
+    __table_args__ = (
+        CheckConstraint("render_kind IN ('preview', 'final')", name="ck_creative_versions_kind"),
+        CheckConstraint("version_number > 0", name="ck_creative_versions_version"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_creative_versions_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            name="fk_creative_versions_ws_project",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "editing_plan_id"],
+            ["editing_plans.workspace_id", "editing_plans.id"],
+            name="fk_creative_versions_ws_plan",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "render_job_id"],
+            ["render_jobs.workspace_id", "render_jobs.id"],
+            name="fk_creative_versions_ws_render",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "output_asset_id"],
+            ["assets.workspace_id", "assets.id"],
+            name="fk_creative_versions_ws_asset",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_creative_versions_ws_id"),
+        UniqueConstraint(
+            "workspace_id",
+            "project_id",
+            "version_number",
+            name="uq_creative_versions_project_version",
+        ),
+        Index("ix_creative_versions_ws_project", "workspace_id", "project_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    project_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    editing_plan_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    render_job_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    output_asset_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    render_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    content_sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    qa_passed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    qa_report: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class Approval(Base):
+    __tablename__ = "approvals"
+    __table_args__ = (
+        CheckConstraint(
+            "approval_type IN ('strategy', 'creative', 'publishing', "
+            "'campaign_execution', 'budget_change')",
+            name="ck_approvals_type",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected', 'revision_requested', 'invalidated')",
+            name="ck_approvals_status",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_approvals_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            name="fk_approvals_ws_project",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "creative_version_id"],
+            ["creative_versions.workspace_id", "creative_versions.id"],
+            name="fk_approvals_ws_version",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_approvals_ws_id"),
+        Index("ix_approvals_ws_status", "workspace_id", "status"),
+        Index("ix_approvals_ws_project", "workspace_id", "project_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    project_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    creative_version_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    approval_type: Mapped[str] = mapped_column(Text, nullable=False)
+    target_type: Mapped[str] = mapped_column(Text, nullable=False)
+    target_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    target_version_sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'pending'"))
+    requested_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    decision_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    invalidated_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class RevisionRequest(Base):
+    __tablename__ = "revision_requests"
+    __table_args__ = (
+        CheckConstraint("timecode_ms IS NULL OR timecode_ms >= 0", name="ck_revisions_timecode"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_revision_requests_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            name="fk_revision_requests_ws_project",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "creative_version_id"],
+            ["creative_versions.workspace_id", "creative_versions.id"],
+            name="fk_revision_requests_ws_version",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "approval_id"],
+            ["approvals.workspace_id", "approvals.id"],
+            name="fk_revision_requests_ws_approval",
+            ondelete="SET NULL",
+        ),
+        Index("ix_revision_requests_ws_project", "workspace_id", "project_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    project_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    creative_version_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    approval_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    requested_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    timecode_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

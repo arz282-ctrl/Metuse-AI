@@ -13,10 +13,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from apps.api.deps import AppContainer
 from apps.api.observability import init_sentry
 from apps.api.routes import (
+    approvals,
     audit,
     auth,
     brand,
     clients,
+    editing,
     health,
     jobs,
     projects,
@@ -24,6 +26,7 @@ from apps.api.routes import (
     workspaces,
 )
 from packages.auth import SessionStore, SupabaseJwksCache
+from packages.media_engine import RenderBackend
 from packages.muse_adapter import MuseAdapter
 from packages.shared.config import BaseAppSettings
 from packages.shared.errors import MetuseError
@@ -42,6 +45,7 @@ def create_app(
     muse_adapter: MuseAdapter | None = None,
     storage: StorageBackend | None = None,
     video_registry: VideoGatewayRegistry | None = None,
+    render_backend: RenderBackend | None = None,
     enable_db: bool = True,
 ) -> FastAPI:
     """Create and configure the Metuse AI FastAPI application."""
@@ -56,6 +60,7 @@ def create_app(
         muse_adapter=muse_adapter,
         storage=storage,
         video_registry=video_registry,
+        render_backend=render_backend,
         enable_db=enable_db,
     )
 
@@ -110,6 +115,8 @@ def create_app(
     app.include_router(jobs.router)
     app.include_router(projects.router)
     app.include_router(video.router)
+    app.include_router(editing.router)
+    app.include_router(approvals.router)
     app.include_router(audit.router)
     return app
 
