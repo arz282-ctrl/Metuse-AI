@@ -24,6 +24,7 @@ from packages.auth import (
     resolve_jwt_secret,
     verify_supabase_jwt_from_settings,
 )
+from packages.media_engine import CloudEditingService, RenderBackend, create_render_backend
 from packages.muse_adapter import MuseAdapter, create_muse_adapter
 from packages.shared.config import BaseAppSettings
 from packages.shared.enums import ErrorCode
@@ -86,6 +87,7 @@ class AppContainer:
     storage: StorageBackend
     video_registry: VideoGatewayRegistry
     video_service: VideoGatewayService
+    editing_service: CloudEditingService
     supabase_jwks_cache: SupabaseJwksCache | None = None
 
     @classmethod
@@ -100,6 +102,7 @@ class AppContainer:
         muse_adapter: MuseAdapter | None = None,
         storage: StorageBackend | None = None,
         video_registry: VideoGatewayRegistry | None = None,
+        render_backend: RenderBackend | None = None,
         enable_db: bool = True,
     ) -> AppContainer:
         resolved_factory = session_factory
@@ -149,6 +152,12 @@ class AppContainer:
             registry=resolved_video_registry,
             storage=resolved_storage,
         )
+        resolved_renderer = render_backend or create_render_backend(settings)
+        resolved_editing_service = CloudEditingService(
+            settings=settings,
+            storage=resolved_storage,
+            renderer=resolved_renderer,
+        )
 
         return cls(
             settings=settings,
@@ -160,6 +169,7 @@ class AppContainer:
             storage=resolved_storage,
             video_registry=resolved_video_registry,
             video_service=resolved_video_service,
+            editing_service=resolved_editing_service,
             supabase_jwks_cache=resolved_jwks,
         )
 

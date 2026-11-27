@@ -99,6 +99,14 @@ class BaseAppSettings(BaseSettings):
     video_poll_max_delay_seconds: float = 60.0
     video_max_poll_attempts: int = 30
 
+    # Cloud Editing & Isolated Render Runtime (Phase 4)
+    render_mode: str = "mock"
+    render_kill_switch: bool = False
+    render_timeout_seconds: int = 120
+    render_max_output_bytes: int = 250 * 1024 * 1024
+    render_cost_per_second_usd: float = 0.01
+    ucuts_repo_path: str = ""
+
     def is_dev_env(self) -> bool:
         """Return True only when APP_ENV is an explicit development/local/test value."""
         normalized = self.app_env.strip().lower()
@@ -202,6 +210,8 @@ class BaseAppSettings(BaseSettings):
             "runway_webhook_secret_configured": bool(
                 self.runway_webhook_secret.get_secret_value().strip()
             ),
+            "render_mode": self.render_mode,
+            "render_kill_switch": self.render_kill_switch,
         }
         scrubbed = scrub_secrets(raw)
         return scrubbed if isinstance(scrubbed, dict) else {}

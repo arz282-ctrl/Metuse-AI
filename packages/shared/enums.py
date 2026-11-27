@@ -136,6 +136,46 @@ class AssetSourceType(StrEnum):
     RENDER = "render"
 
 
+class RenderKind(StrEnum):
+    """Cloud editing render output classification."""
+
+    PREVIEW = "preview"
+    FINAL = "final"
+
+
+class RenderJobStatus(StrEnum):
+    """Lifecycle states for isolated cloud editing render jobs."""
+
+    QUEUED = "queued"
+    VALIDATING = "validating"
+    RENDERING = "rendering"
+    QA_CHECKING = "qa_checking"
+    SUCCEEDED = "succeeded"
+    QA_FAILED = "qa_failed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class ApprovalType(StrEnum):
+    """Mandatory human-approval gate types (Section 9)."""
+
+    STRATEGY = "strategy"
+    CREATIVE = "creative"
+    PUBLISHING = "publishing"
+    CAMPAIGN_EXECUTION = "campaign_execution"
+    BUDGET_CHANGE = "budget_change"
+
+
+class ApprovalStatus(StrEnum):
+    """Version-bound approval lifecycle states."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    REVISION_REQUESTED = "revision_requested"
+    INVALIDATED = "invalidated"
+
+
 class AuditAction(StrEnum):
     """Canonical append-only audit log action identifiers."""
 
@@ -161,10 +201,21 @@ class AuditAction(StrEnum):
     WORKSPACE_BUDGET_UPDATED = "workspace_budget.updated"
     PROJECT_CREATED = "project.created"
     ASSET_CREATED = "asset.created"
+    ASSET_UPLOAD_URL_CREATED = "asset.upload_url_created"
+    ASSET_UPLOAD_COMPLETED = "asset.upload_completed"
     VIDEO_JOB_CREATED = "video_job.created"
     VIDEO_JOB_COMPLETED = "video_job.completed"
     VIDEO_JOB_FAILED = "video_job.failed"
     VIDEO_JOB_CANCELLED = "video_job.cancelled"
+    EDITING_PLAN_CREATED = "editing_plan.created"
+    RENDER_JOB_CREATED = "render_job.created"
+    RENDER_JOB_COMPLETED = "render_job.completed"
+    RENDER_JOB_FAILED = "render_job.failed"
+    APPROVAL_CREATED = "approval.created"
+    APPROVAL_APPROVED = "approval.approved"
+    APPROVAL_REJECTED = "approval.rejected"
+    APPROVAL_REVISION_REQUESTED = "approval.revision_requested"
+    APPROVAL_INVALIDATED = "approval.invalidated"
 
 
 class ErrorCode(StrEnum):
@@ -187,6 +238,9 @@ class ErrorCode(StrEnum):
     NO_ELIGIBLE_PROVIDER = "NO_ELIGIBLE_PROVIDER"
     INVALID_STATE_TRANSITION = "INVALID_STATE_TRANSITION"
     WEBHOOK_SIGNATURE_INVALID = "WEBHOOK_SIGNATURE_INVALID"
+    MEDIA_QA_FAILED = "MEDIA_QA_FAILED"
+    APPROVAL_INVALIDATED = "APPROVAL_INVALIDATED"
+    UNSUPPORTED_TIMELINE_OPERATION = "UNSUPPORTED_TIMELINE_OPERATION"
     INVALID_TASK_TYPE = "INVALID_TASK_TYPE"
     SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
     VALIDATION_ERROR = "VALIDATION_ERROR"
