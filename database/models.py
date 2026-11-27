@@ -1283,3 +1283,178 @@ class RevisionRequest(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+
+
+class MetaConnection(Base):
+    __tablename__ = "meta_connections"
+    __table_args__ = (
+        CheckConstraint(
+            "connection_type IN ('agency_business', 'creator_professional', "
+            "'page_only', 'ads_only')",
+            name="ck_meta_connections_type",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'reconnect_required', 'revoked', 'disconnected')",
+            name="ck_meta_connections_status",
+        ),
+        CheckConstraint(
+            "token_secret_ref LIKE 'secret://%'",
+            name="ck_meta_connections_secret_ref_scheme",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_meta_connections_ws_client",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_meta_connections_ws_id"),
+        Index("ix_meta_connections_ws_client", "workspace_id", "client_id"),
+        Index("ix_meta_connections_ws_status", "workspace_id", "status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    connection_type: Mapped[str] = mapped_column(Text, nullable=False)
+    meta_business_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    config_id: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
+    token_secret_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    token_type: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'system_user'")
+    )
+    granted_scopes: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    instagram_account_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    page_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    ad_account_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    capabilities: Mapped[dict[str, bool]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'active'"))
+    last_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reconnect_required_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reconnect_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class MetaConnectedAsset(Base):
+    __tablename__ = "meta_connected_assets"
+    __table_args__ = (
+        CheckConstraint(
+            "asset_type IN ('instagram_professional', 'facebook_page', 'ad_account')",
+            name="ck_meta_connected_assets_type",
+        ),
+        CheckConstraint(
+            "instagram_account_type IS NULL OR instagram_account_type IN ('business', 'creator')",
+            name="ck_meta_connected_assets_ig_type",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'revoked', 'moved')",
+            name="ck_meta_connected_assets_status",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_meta_connected_assets_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "connection_id"],
+            ["meta_connections.workspace_id", "meta_connections.id"],
+            name="fk_meta_connected_assets_ws_conn",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "workspace_id",
+            "connection_id",
+            "asset_type",
+            "external_asset_id",
+            name="uq_meta_connected_assets_unique",
+        ),
+        Index("ix_meta_connected_assets_ws_conn", "workspace_id", "connection_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    connection_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    asset_type: Mapped[str] = mapped_column(Text, nullable=False)
+    external_asset_id: Mapped[str] = mapped_column(Text, nullable=False)
+    display_name: Mapped[str] = mapped_column(Text, nullable=False)
+    username: Mapped[str | None] = mapped_column(Text, nullable=True)
+    instagram_account_type: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta_business_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_selected: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    is_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'active'"))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class MetaWebhookEvent(Base):
+    __tablename__ = "meta_webhook_events"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "connection_id"],
+            ["meta_connections.workspace_id", "meta_connections.id"],
+            name="fk_meta_webhook_events_ws_conn",
+            ondelete="SET NULL",
+        ),
+        Index("ix_meta_webhook_events_ws_created", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    connection_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    provider_event_id: Mapped[str] = mapped_column(Text, nullable=False)
+    object_type: Mapped[str] = mapped_column(Text, nullable=False)
+    event_field: Mapped[str] = mapped_column(Text, nullable=False)
+    signature_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )

@@ -176,6 +176,40 @@ class ApprovalStatus(StrEnum):
     INVALIDATED = "invalidated"
 
 
+class MetaConnectionType(StrEnum):
+    """Supported Meta Unified Login onboarding connection types (Section 8.2)."""
+
+    AGENCY_BUSINESS = "agency_business"
+    CREATOR_PROFESSIONAL = "creator_professional"
+    PAGE_ONLY = "page_only"
+    ADS_ONLY = "ads_only"
+
+
+class MetaConnectionStatus(StrEnum):
+    """Lifecycle states for a Meta account connection."""
+
+    ACTIVE = "active"
+    RECONNECT_REQUIRED = "reconnect_required"
+    REVOKED = "revoked"
+    DISCONNECTED = "disconnected"
+
+
+class MetaAssetType(StrEnum):
+    """Discovered external Meta asset types."""
+
+    INSTAGRAM_PROFESSIONAL = "instagram_professional"
+    FACEBOOK_PAGE = "facebook_page"
+    AD_ACCOUNT = "ad_account"
+
+
+class InstagramAccountType(StrEnum):
+    """Instagram account tier returned during eligibility inspection."""
+
+    BUSINESS = "business"
+    CREATOR = "creator"
+    PERSONAL = "personal"
+
+
 class AuditAction(StrEnum):
     """Canonical append-only audit log action identifiers."""
 
@@ -216,6 +250,13 @@ class AuditAction(StrEnum):
     APPROVAL_REJECTED = "approval.rejected"
     APPROVAL_REVISION_REQUESTED = "approval.revision_requested"
     APPROVAL_INVALIDATED = "approval.invalidated"
+    META_LOGIN_STARTED = "meta.login_started"
+    META_CONNECTION_CREATED = "meta.connection_created"
+    META_CONNECTION_RECONNECTED = "meta.connection_reconnected"
+    META_CONNECTION_DISCONNECTED = "meta.connection_disconnected"
+    META_CONNECTION_REVOKED = "meta.connection_revoked"
+    META_PERSONAL_ACCOUNT_BLOCKED = "meta.personal_account_blocked"
+    META_WEBHOOK_RECEIVED = "meta.webhook_received"
 
 
 class ErrorCode(StrEnum):
@@ -241,6 +282,11 @@ class ErrorCode(StrEnum):
     MEDIA_QA_FAILED = "MEDIA_QA_FAILED"
     APPROVAL_INVALIDATED = "APPROVAL_INVALIDATED"
     UNSUPPORTED_TIMELINE_OPERATION = "UNSUPPORTED_TIMELINE_OPERATION"
+    META_PERSONAL_ACCOUNT_INELIGIBLE = "META_PERSONAL_ACCOUNT_INELIGIBLE"
+    META_PERMISSION_MISSING = "META_PERMISSION_MISSING"
+    META_RECONNECT_REQUIRED = "META_RECONNECT_REQUIRED"
+    META_OAUTH_STATE_INVALID = "META_OAUTH_STATE_INVALID"
+    META_REDIRECT_URI_NOT_ALLOWED = "META_REDIRECT_URI_NOT_ALLOWED"
     INVALID_TASK_TYPE = "INVALID_TASK_TYPE"
     SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
     VALIDATION_ERROR = "VALIDATION_ERROR"
