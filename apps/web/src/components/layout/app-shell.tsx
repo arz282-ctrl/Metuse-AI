@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
+  Film,
   FolderKanban,
   LayoutDashboard,
   LogOut,
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/jobs", label: "AI Workers", icon: FolderKanban },
+  { href: "/video", label: "Video Studio", icon: Film },
   { href: "/onboarding/workspace", label: "New Workspace", icon: Building2 },
   { href: "/onboarding/client", label: "New Client", icon: PlusCircle },
 ];
@@ -55,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <p className="text-sm font-semibold tracking-tight">Metuse AI</p>
-              <p className="text-[11px] text-muted-foreground">Agency OS · Phase 2</p>
+              <p className="text-[11px] text-muted-foreground">Agency OS · Phase 3</p>
             </div>
           </Link>
           <button
