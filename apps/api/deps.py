@@ -24,9 +24,11 @@ from packages.auth import (
     resolve_jwt_secret,
     verify_supabase_jwt_from_settings,
 )
+from packages.muse_adapter import MuseAdapter, create_muse_adapter
 from packages.shared.config import BaseAppSettings
 from packages.shared.enums import ErrorCode
 from packages.shared.errors import AuthenticationError, MetuseError
+from packages.skill_runtime import SkillRegistry
 from packages.tenancy import create_app_engine, create_session_factory, rls_transaction
 
 
@@ -73,6 +75,8 @@ class AppContainer:
     session_factory: sessionmaker[Session] | None
     session_store: SessionStore
     auth_rate_limiter: InMemoryRateLimiter
+    skill_registry: SkillRegistry
+    muse_adapter: MuseAdapter
     supabase_jwks_cache: SupabaseJwksCache | None = None
 
     @classmethod
@@ -83,6 +87,8 @@ class AppContainer:
         session_factory: sessionmaker[Session] | None = None,
         session_store: SessionStore | None = None,
         supabase_jwks_cache: SupabaseJwksCache | None = None,
+        skill_registry: SkillRegistry | None = None,
+        muse_adapter: MuseAdapter | None = None,
         enable_db: bool = True,
     ) -> AppContainer:
         resolved_factory = session_factory
@@ -117,6 +123,8 @@ class AppContainer:
             session_factory=resolved_factory,
             session_store=resolved_store,
             auth_rate_limiter=InMemoryRateLimiter(max_requests=30, window_seconds=60),
+            skill_registry=skill_registry or SkillRegistry(),
+            muse_adapter=muse_adapter or create_muse_adapter(settings),
             supabase_jwks_cache=resolved_jwks,
         )
 

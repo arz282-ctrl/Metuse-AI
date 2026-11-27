@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     Text,
     UniqueConstraint,
     text,
@@ -321,6 +323,292 @@ class AuditLog(Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class SkillDefinition(Base):
+    __tablename__ = "skill_definitions"
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    skill_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class SkillVersion(Base):
+    __tablename__ = "skill_versions"
+    __table_args__ = (
+        UniqueConstraint("skill_definition_id", "version", name="uq_skill_versions_def_version"),
+        Index("ix_skill_versions_def_active", "skill_definition_id", "is_active"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    skill_definition_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_definitions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[str] = mapped_column(Text, nullable=False)
+    content_sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    source_path: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class WorkerJob(Base):
+    __tablename__ = "worker_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "task_type IN ('research', 'writing', 'seo_aeo', 'media_plan')",
+            name="ck_worker_jobs_task_type",
+        ),
+        CheckConstraint(
+            "status IN ('queued', 'running', 'succeeded', 'failed', 'needs_review')",
+            name="ck_worker_jobs_status",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_worker_jobs_ws_client",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_worker_jobs_ws_id"),
+        Index("ix_worker_jobs_ws_created", "workspace_id", "created_at"),
+        Index("ix_worker_jobs_ws_client", "workspace_id", "client_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    actor_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    brand_profile_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    task_type: Mapped[str] = mapped_column(Text, nullable=False)
+    skill_id: Mapped[str] = mapped_column(Text, nullable=False)
+    skill_version: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'queued'"))
+    idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_output_schema: Mapped[str] = mapped_column(Text, nullable=False)
+    input_payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    output_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    warnings: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class ModelRun(Base):
+    __tablename__ = "model_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('succeeded', 'failed', 'rate_limited')",
+            name="ck_model_runs_status",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "worker_job_id"],
+            ["worker_jobs.workspace_id", "worker_jobs.id"],
+            name="fk_model_runs_ws_job",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_model_runs_ws_id"),
+        Index("ix_model_runs_ws_created", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    worker_job_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    capability: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(Text, nullable=False)
+    schema_version: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    input_units: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    output_units: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class UsageRecord(Base):
+    __tablename__ = "usage_records"
+    __table_args__ = (
+        CheckConstraint("input_units >= 0 AND output_units >= 0", name="ck_usage_records_units"),
+        ForeignKeyConstraint(
+            ["workspace_id", "worker_job_id"],
+            ["worker_jobs.workspace_id", "worker_jobs.id"],
+            name="fk_usage_records_ws_job",
+            ondelete="SET NULL",
+        ),
+        Index("ix_usage_records_ws_period", "workspace_id", "billing_period"),
+        Index("ix_usage_records_ws_client_period", "workspace_id", "client_id", "billing_period"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    worker_job_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    model_run_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    capability: Mapped[str] = mapped_column(Text, nullable=False)
+    input_units: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    output_units: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    estimated_cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, server_default=text("0")
+    )
+    billing_period: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class WorkspaceBudget(Base):
+    __tablename__ = "workspace_budgets"
+    __table_args__ = (
+        CheckConstraint(
+            "(monthly_unit_limit IS NULL OR monthly_unit_limit >= 0) "
+            "AND (monthly_cost_limit_usd IS NULL OR monthly_cost_limit_usd >= 0)",
+            name="ck_workspace_budgets_non_negative",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_workspace_budgets_ws_client",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    monthly_unit_limit: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    monthly_cost_limit_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    provider_kill_switch: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class ResearchReport(Base):
+    __tablename__ = "research_reports"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "worker_job_id"],
+            ["worker_jobs.workspace_id", "worker_jobs.id"],
+            name="fk_research_reports_ws_job",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_research_reports_ws_id"),
+        UniqueConstraint("worker_job_id", name="uq_research_reports_job_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    worker_job_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    topic: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    findings: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    inferences: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    confidence_overall: Mapped[Decimal] = mapped_column(
+        Numeric(4, 3), nullable=False, server_default=text("0.500")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class ResearchSource(Base):
+    __tablename__ = "research_sources"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "research_report_id"],
+            ["research_reports.workspace_id", "research_reports.id"],
+            name="fk_research_sources_ws_report",
+            ondelete="CASCADE",
+        ),
+        Index("ix_research_sources_report", "research_report_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    research_report_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    published_date: Mapped[str | None] = mapped_column(Text, nullable=True)
+    claim: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[Decimal] = mapped_column(
+        Numeric(4, 3), nullable=False, server_default=text("0.500")
+    )
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

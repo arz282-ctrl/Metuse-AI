@@ -12,10 +12,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from apps.api.deps import AppContainer
 from apps.api.observability import init_sentry
-from apps.api.routes import audit, auth, clients, health, workspaces
+from apps.api.routes import audit, auth, brand, clients, health, jobs, workspaces
 from packages.auth import SessionStore, SupabaseJwksCache
+from packages.muse_adapter import MuseAdapter
 from packages.shared.config import BaseAppSettings
 from packages.shared.errors import MetuseError
+from packages.skill_runtime import SkillRegistry
 
 
 def create_app(
@@ -24,6 +26,8 @@ def create_app(
     session_factory: sessionmaker[Session] | None = None,
     session_store: SessionStore | None = None,
     supabase_jwks_cache: SupabaseJwksCache | None = None,
+    skill_registry: SkillRegistry | None = None,
+    muse_adapter: MuseAdapter | None = None,
     enable_db: bool = True,
 ) -> FastAPI:
     """Create and configure the Metuse AI FastAPI application."""
@@ -34,6 +38,8 @@ def create_app(
         session_factory=session_factory,
         session_store=session_store,
         supabase_jwks_cache=supabase_jwks_cache,
+        skill_registry=skill_registry,
+        muse_adapter=muse_adapter,
         enable_db=enable_db,
     )
 
@@ -50,7 +56,13 @@ def create_app(
         allow_origins=resolved_settings.get_cors_origins(),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-Id", "X-CSRF-Token"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-Id",
+            "X-CSRF-Token",
+            "Idempotency-Key",
+        ],
     )
 
     @app.middleware("http")
@@ -78,6 +90,8 @@ def create_app(
     app.include_router(auth.router)
     app.include_router(workspaces.router)
     app.include_router(clients.router)
+    app.include_router(brand.router)
+    app.include_router(jobs.router)
     app.include_router(audit.router)
     return app
 

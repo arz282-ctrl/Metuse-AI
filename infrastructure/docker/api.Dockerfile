@@ -14,6 +14,8 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock* README.md alembic.ini ./
 COPY apps/api ./apps/api
 COPY packages ./packages
+COPY workers ./workers
+COPY skills ./skills
 COPY database ./database
 COPY infrastructure/docker/api-entrypoint.sh /usr/local/bin/api-entrypoint.sh
 

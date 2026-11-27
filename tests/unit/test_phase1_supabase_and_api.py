@@ -288,9 +288,10 @@ def test_alembic_migration_graph_has_single_linear_head() -> None:
     script = ScriptDirectory.from_config(cfg)
 
     heads = script.get_heads()
-    assert heads == ["0003_supabase_compat"]
+    assert heads == ["0004_phase2_ai_workers_and_usage"]
     revisions = [rev.revision for rev in script.walk_revisions()]
     assert revisions == [
+        "0004_phase2_ai_workers_and_usage",
         "0003_supabase_compat",
         "0002_harden_functions_search_path",
         "0001_initial_schema",

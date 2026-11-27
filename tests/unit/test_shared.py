@@ -50,7 +50,7 @@ def test_role_names_and_core_enums_match_m1_spec() -> None:
     assert {w.value for w in WorkspaceType} == {"agency", "creator"}
     assert {m.value for m in MemberStatus} == {"active", "invited", "suspended", "removed"}
     assert {c.value for c in ClientStatus} == {"active", "paused", "archived"}
-    assert {p.value for p in IdentityProvider} == {"email", "meta"}
+    assert {p.value for p in IdentityProvider} == {"email", "meta", "supabase"}
     assert BrandAssetType.LOGO.value == "logo"
     assert AuditAction.WORKSPACE_CREATED.value == "workspace.created"
     assert ErrorCode.WORKSPACE_MEMBER_LIMIT_EXCEEDED.value == "WORKSPACE_MEMBER_LIMIT_EXCEEDED"

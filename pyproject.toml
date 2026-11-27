@@ -33,7 +33,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["apps", "packages", "database"]
+packages = ["apps", "packages", "database", "workers"]
 exclude = [
   "apps/web",
   "apps/web/**",

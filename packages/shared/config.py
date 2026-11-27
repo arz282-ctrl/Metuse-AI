@@ -80,6 +80,14 @@ class BaseAppSettings(BaseSettings):
     cloudflare_api_token: SecretStr = SecretStr("")
     sentry_dsn: str = ""
 
+    # Meta Muse (Model API) — strictly separate from Meta Graph / Marketing API credentials
+    muse_base_url: str = "https://api.meta.ai/v1"
+    muse_api_key: SecretStr = SecretStr("")
+    muse_mode: str = "mock"
+    muse_timeout_seconds: float = 30.0
+    muse_max_retries: int = 2
+    muse_kill_switch: bool = False
+
     def is_dev_env(self) -> bool:
         """Return True only when APP_ENV is an explicit development/local/test value."""
         normalized = self.app_env.strip().lower()
@@ -173,6 +181,10 @@ class BaseAppSettings(BaseSettings):
             ),
             "cloudflare_account_configured": bool(self.cloudflare_account_id.strip()),
             "sentry_dsn_configured": bool(self.sentry_dsn.strip()),
+            "muse_base_url": self.muse_base_url,
+            "muse_mode": self.muse_mode,
+            "muse_api_key_configured": bool(self.muse_api_key.get_secret_value().strip()),
+            "muse_kill_switch": self.muse_kill_switch,
         }
         scrubbed = scrub_secrets(raw)
         return scrubbed if isinstance(scrubbed, dict) else {}

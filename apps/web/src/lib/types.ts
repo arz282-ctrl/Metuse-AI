@@ -81,3 +81,56 @@ export interface ApiErrorEnvelope {
   };
   detail?: string;
 }
+
+export type WorkerTaskType = "research" | "writing" | "seo_aeo" | "media_plan";
+
+export interface SkillCatalogItem {
+  skill_id: string;
+  version: string;
+  display_name: string;
+  description: string;
+  content_sha256: string;
+}
+
+export interface WorkerJobRecord {
+  id: string;
+  workspace_id: string;
+  client_id: string | null;
+  actor_user_id: string;
+  brand_profile_id: string | null;
+  task_type: WorkerTaskType;
+  skill_id: string;
+  skill_version: string;
+  status: string;
+  idempotency_key: string | null;
+  requested_output_schema: string;
+  input_payload: Record<string, unknown>;
+  output_payload: Record<string, unknown> | null;
+  warnings: string[];
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface UsageBreakdownItem {
+  provider: string;
+  model: string;
+  capability: string;
+  total_input_units: number;
+  total_output_units: number;
+  total_estimated_cost_usd: string;
+  run_count: number;
+}
+
+export interface UsageSummaryRecord {
+  workspace_id: string;
+  client_id: string | null;
+  billing_period: string;
+  total_input_units: number;
+  total_output_units: number;
+  total_estimated_cost_usd: string;
+  cost_disclaimer: string;
+  breakdown: UsageBreakdownItem[];
+}
