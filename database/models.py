@@ -1458,3 +1458,285 @@ class MetaWebhookEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+
+
+class ContentCalendar(Base):
+    __tablename__ = "content_calendars"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_content_calendars_ws_client",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_content_calendars_ws_id"),
+        Index("ix_content_calendars_ws_client", "workspace_id", "client_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    timezone: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'UTC'"))
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class ContentItem(Base):
+    __tablename__ = "content_items"
+    __table_args__ = (
+        CheckConstraint(
+            "media_type IN ('reels', 'image', 'video', 'carousel', 'story')",
+            name="ck_content_items_media_type",
+        ),
+        CheckConstraint(
+            "status IN ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled')",
+            name="ck_content_items_status",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_content_items_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "calendar_id"],
+            ["content_calendars.workspace_id", "content_calendars.id"],
+            name="fk_content_items_ws_calendar",
+            ondelete="SET NULL",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "project_id"],
+            ["projects.workspace_id", "projects.id"],
+            name="fk_content_items_ws_project",
+            ondelete="SET NULL",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "creative_version_id"],
+            ["creative_versions.workspace_id", "creative_versions.id"],
+            name="fk_content_items_ws_version",
+            ondelete="SET NULL",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "meta_connection_id"],
+            ["meta_connections.workspace_id", "meta_connections.id"],
+            name="fk_content_items_ws_meta_conn",
+            ondelete="SET NULL",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_content_items_ws_id"),
+        Index("ix_content_items_ws_scheduled", "workspace_id", "scheduled_for"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    calendar_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    project_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    creative_version_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    meta_connection_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    external_account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    media_type: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'reels'"))
+    caption: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
+    is_ai_generated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    carousel_asset_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'draft'"))
+    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class PublishingJob(Base):
+    __tablename__ = "publishing_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued', 'validating', 'container_creating', 'container_ready', "
+            "'publishing', 'verifying_remote', 'published', 'failed', 'cancelled')",
+            name="ck_publishing_jobs_status",
+        ),
+        CheckConstraint("attempt_count >= 0", name="ck_publishing_jobs_attempts"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_publishing_jobs_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "content_item_id"],
+            ["content_items.workspace_id", "content_items.id"],
+            name="fk_publishing_jobs_ws_content",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "meta_connection_id"],
+            ["meta_connections.workspace_id", "meta_connections.id"],
+            name="fk_publishing_jobs_ws_conn",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_publishing_jobs_ws_id"),
+        Index("ix_publishing_jobs_ws_content", "workspace_id", "content_item_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    content_item_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    meta_connection_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    actor_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'queued'"))
+    idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remote_container_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remote_media_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    is_ai_generated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    account_limit_quota_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    account_limit_quota_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class PublishingResult(Base):
+    __tablename__ = "publishing_results"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_publishing_results_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "publishing_job_id"],
+            ["publishing_jobs.workspace_id", "publishing_jobs.id"],
+            name="fk_publishing_results_ws_job",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "content_item_id"],
+            ["content_items.workspace_id", "content_items.id"],
+            name="fk_publishing_results_ws_content",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "workspace_id",
+            "external_account_id",
+            "remote_media_id",
+            name="uq_publishing_results_remote_media",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    publishing_job_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    content_item_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    external_account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    remote_container_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remote_media_id: Mapped[str] = mapped_column(Text, nullable=False)
+    permalink: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verified_via_remote_check: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    raw_response: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class InsightsSnapshot(Base):
+    __tablename__ = "insights_snapshots"
+    __table_args__ = (
+        CheckConstraint("scope IN ('account', 'media')", name="ck_insights_snapshots_scope"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_insights_snapshots_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "meta_connection_id"],
+            ["meta_connections.workspace_id", "meta_connections.id"],
+            name="fk_insights_snapshots_ws_conn",
+            ondelete="CASCADE",
+        ),
+        Index(
+            "ix_insights_snapshots_ws_client_captured",
+            "workspace_id",
+            "client_id",
+            "captured_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    meta_connection_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    external_account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    remote_media_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
+    period: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'days_28'"))
+    impressions: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    reach: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    likes: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    comments: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    saves: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    shares: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    plays: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    follower_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )

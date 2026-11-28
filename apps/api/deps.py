@@ -29,6 +29,9 @@ from packages.meta_integrations import (
     EncryptedSecretStore,
     MetaConnectionService,
     MetaGraphClient,
+    MetaPublisherClient,
+    MockMetaPublisherClient,
+    PublishingAndInsightsService,
     SecretStore,
     create_meta_graph_client,
 )
@@ -97,6 +100,7 @@ class AppContainer:
     editing_service: CloudEditingService
     secret_store: SecretStore
     meta_service: MetaConnectionService
+    publishing_service: PublishingAndInsightsService
     supabase_jwks_cache: SupabaseJwksCache | None = None
 
     @classmethod
@@ -114,6 +118,7 @@ class AppContainer:
         render_backend: RenderBackend | None = None,
         meta_graph_client: MetaGraphClient | None = None,
         secret_store: SecretStore | None = None,
+        publisher_client: MetaPublisherClient | None = None,
         enable_db: bool = True,
     ) -> AppContainer:
         resolved_factory = session_factory
@@ -176,6 +181,14 @@ class AppContainer:
             graph_client=resolved_meta_client,
             secret_store=resolved_secret_store,
         )
+        resolved_publisher = publisher_client or MockMetaPublisherClient()
+        resolved_publishing_service = PublishingAndInsightsService(
+            settings=settings,
+            meta_service=resolved_meta_service,
+            secret_store=resolved_secret_store,
+            storage=resolved_storage,
+            publisher=resolved_publisher,
+        )
 
         return cls(
             settings=settings,
@@ -190,6 +203,7 @@ class AppContainer:
             editing_service=resolved_editing_service,
             secret_store=resolved_secret_store,
             meta_service=resolved_meta_service,
+            publishing_service=resolved_publishing_service,
             supabase_jwks_cache=resolved_jwks,
         )
 

@@ -112,6 +112,7 @@ class BaseAppSettings(BaseSettings):
     meta_graph_api_version: str = "v22.0"
     meta_graph_base_url: str = "https://graph.facebook.com"
     meta_secret_encryption_key: SecretStr = SecretStr("")
+    publishing_kill_switch: bool = False
 
     def is_dev_env(self) -> bool:
         """Return True only when APP_ENV is an explicit development/local/test value."""
@@ -223,6 +224,7 @@ class BaseAppSettings(BaseSettings):
             "meta_secret_encryption_key_configured": bool(
                 self.meta_secret_encryption_key.get_secret_value().strip()
             ),
+            "publishing_kill_switch": self.publishing_kill_switch,
         }
         scrubbed = scrub_secrets(raw)
         return scrubbed if isinstance(scrubbed, dict) else {}
