@@ -1740,3 +1740,328 @@ class InsightsSnapshot(Base):
     captured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+
+
+class AdAccount(Base):
+    __tablename__ = "ad_accounts"
+    __table_args__ = (
+        CheckConstraint(
+            "spend_cap_cents IS NULL OR spend_cap_cents >= 0",
+            name="ck_ad_accounts_spend_cap",
+        ),
+        CheckConstraint("amount_spent_cents >= 0", name="ck_ad_accounts_amount_spent"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_ad_accounts_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "meta_connection_id"],
+            ["meta_connections.workspace_id", "meta_connections.id"],
+            name="fk_ad_accounts_ws_conn",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_ad_accounts_ws_id"),
+        UniqueConstraint(
+            "workspace_id",
+            "external_account_id",
+            name="uq_ad_accounts_ws_external",
+        ),
+        Index("ix_ad_accounts_ws_client", "workspace_id", "client_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    meta_connection_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    external_account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    currency: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'USD'"))
+    timezone_name: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'UTC'"))
+    account_status: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'active'")
+    )
+    spend_cap_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    amount_spent_cents: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0")
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class AdCampaignSnapshot(Base):
+    __tablename__ = "ad_campaign_snapshots"
+    __table_args__ = (
+        CheckConstraint(
+            "daily_budget_cents IS NULL OR daily_budget_cents >= 0",
+            name="ck_ad_campaigns_daily_budget",
+        ),
+        CheckConstraint(
+            "lifetime_budget_cents IS NULL OR lifetime_budget_cents >= 0",
+            name="ck_ad_campaigns_lifetime_budget",
+        ),
+        CheckConstraint("spend_cents >= 0", name="ck_ad_campaigns_spend"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_ad_campaigns_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "ad_account_id"],
+            ["ad_accounts.workspace_id", "ad_accounts.id"],
+            name="fk_ad_campaigns_ws_account",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_ad_campaigns_ws_id"),
+        UniqueConstraint(
+            "workspace_id",
+            "ad_account_id",
+            "external_campaign_id",
+            name="uq_ad_campaigns_ws_ext",
+        ),
+        Index("ix_ad_campaigns_ws_account", "workspace_id", "ad_account_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    ad_account_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    external_campaign_id: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'PAUSED'"))
+    daily_budget_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    lifetime_budget_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    spend_cents: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    impressions: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    clicks: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    conversions: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class AdSetSnapshot(Base):
+    __tablename__ = "ad_set_snapshots"
+    __table_args__ = (
+        CheckConstraint(
+            "daily_budget_cents IS NULL OR daily_budget_cents >= 0",
+            name="ck_ad_sets_daily_budget",
+        ),
+        CheckConstraint("spend_cents >= 0", name="ck_ad_sets_spend"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_ad_sets_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "ad_account_id"],
+            ["ad_accounts.workspace_id", "ad_accounts.id"],
+            name="fk_ad_sets_ws_account",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "campaign_snapshot_id"],
+            ["ad_campaign_snapshots.workspace_id", "ad_campaign_snapshots.id"],
+            name="fk_ad_sets_ws_campaign",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_ad_sets_ws_id"),
+        UniqueConstraint(
+            "workspace_id",
+            "ad_account_id",
+            "external_ad_set_id",
+            name="uq_ad_sets_ws_ext",
+        ),
+        Index("ix_ad_sets_ws_campaign", "workspace_id", "campaign_snapshot_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    ad_account_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    campaign_snapshot_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    external_ad_set_id: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'PAUSED'"))
+    optimization_goal: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'REACH'")
+    )
+    daily_budget_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    targeting_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    spend_cents: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    impressions: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    clicks: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class AdSnapshot(Base):
+    __tablename__ = "ad_snapshots"
+    __table_args__ = (
+        CheckConstraint("spend_cents >= 0", name="ck_ad_snapshots_spend"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_ad_snapshots_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "ad_account_id"],
+            ["ad_accounts.workspace_id", "ad_accounts.id"],
+            name="fk_ad_snapshots_ws_account",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "ad_set_snapshot_id"],
+            ["ad_set_snapshots.workspace_id", "ad_set_snapshots.id"],
+            name="fk_ad_snapshots_ws_ad_set",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "workspace_id",
+            "ad_account_id",
+            "external_ad_id",
+            name="uq_ad_snapshots_ws_ext",
+        ),
+        Index("ix_ad_snapshots_ws_ad_set", "workspace_id", "ad_set_snapshot_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    ad_account_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    ad_set_snapshot_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    external_ad_id: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'PAUSED'"))
+    creative_summary_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    spend_cents: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    impressions: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    clicks: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class AdCampaignDraft(Base):
+    __tablename__ = "ad_campaign_drafts"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft', 'validated', 'pending_approval', 'executed', 'failed')",
+            name="ck_ad_drafts_status",
+        ),
+        CheckConstraint("daily_budget_cents > 0", name="ck_ad_drafts_daily_budget"),
+        CheckConstraint("version_number > 0", name="ck_ad_drafts_version"),
+        ForeignKeyConstraint(
+            ["workspace_id", "client_id"],
+            ["clients.workspace_id", "clients.id"],
+            name="fk_ad_drafts_ws_client",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "ad_account_id"],
+            ["ad_accounts.workspace_id", "ad_accounts.id"],
+            name="fk_ad_drafts_ws_account",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "approval_id"],
+            ["approvals.workspace_id", "approvals.id"],
+            name="fk_ad_drafts_ws_approval",
+            ondelete="SET NULL",
+        ),
+        UniqueConstraint("workspace_id", "id", name="uq_ad_drafts_ws_id"),
+        Index("ix_ad_drafts_ws_account", "workspace_id", "ad_account_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    client_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    ad_account_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'draft'"))
+    daily_budget_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    targeting_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    creative_refs_json: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+    content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    validation_passed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    validation_report: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    approval_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remote_campaign_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )

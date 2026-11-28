@@ -113,6 +113,8 @@ class BaseAppSettings(BaseSettings):
     meta_graph_base_url: str = "https://graph.facebook.com"
     meta_secret_encryption_key: SecretStr = SecretStr("")
     publishing_kill_switch: bool = False
+    ads_kill_switch: bool = False
+    ads_max_daily_budget_cents: int = 500_000
 
     def is_dev_env(self) -> bool:
         """Return True only when APP_ENV is an explicit development/local/test value."""
@@ -225,6 +227,8 @@ class BaseAppSettings(BaseSettings):
                 self.meta_secret_encryption_key.get_secret_value().strip()
             ),
             "publishing_kill_switch": self.publishing_kill_switch,
+            "ads_kill_switch": self.ads_kill_switch,
+            "ads_max_daily_budget_cents": self.ads_max_daily_budget_cents,
         }
         scrubbed = scrub_secrets(raw)
         return scrubbed if isinstance(scrubbed, dict) else {}

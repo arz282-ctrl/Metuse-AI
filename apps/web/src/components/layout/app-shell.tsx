@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Link2,
   LogOut,
+  Megaphone,
   Menu,
   PlusCircle,
   ShieldCheck,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { href: "/studio", label: "Cloud Studio", icon: Clapperboard },
   { href: "/connections", label: "Connections", icon: Link2 },
   { href: "/publishing", label: "Publishing", icon: CalendarClock },
+  { href: "/ads", label: "Ads Ops", icon: Megaphone },
   { href: "/onboarding/workspace", label: "New Workspace", icon: Building2 },
   { href: "/onboarding/client", label: "New Client", icon: PlusCircle },
 ];
@@ -63,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <p className="text-sm font-semibold tracking-tight">Metuse AI</p>
-              <p className="text-[11px] text-muted-foreground">Agency OS · Phase 6</p>
+              <p className="text-[11px] text-muted-foreground">Agency OS · Phase 7</p>
             </div>
           </Link>
           <button
@@ -128,11 +130,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="mx-2 rounded-lg border border-border bg-secondary/40 p-3">
           <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-            <FolderKanban className="h-3.5 w-3.5 text-indigo-400" />
-            <span>Phase 2+ Modules</span>
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+            <span>All 7 Phases Active</span>
           </div>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-            Research, SEO/AEO, Media Studio, Meta Publishing & Analytics unlock after Phase 1 foundation sign-off.
+            Workers, Video Gateway, Cloud Studio, Meta Login, Publishing, Insights & Approval-Gated Ads Ops.
           </p>
         </div>
       </div>

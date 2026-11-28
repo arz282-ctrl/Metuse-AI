@@ -124,9 +124,15 @@ class MockMetaGraphClient:
                 ],
             )
 
-        # Acceptance #5: Agency Business portfolio with selected IG Pro + optional Ad Account
-        if cleaned == "mock_agency_biz" or connection_type == MetaConnectionType.AGENCY_BUSINESS:
+        # Acceptance #5 & #16: Agency Business portfolio with selected IG Pro + optional Ad Account
+        if cleaned in {"mock_agency_biz", "mock_agency_biz_manage"} or (
+            connection_type == MetaConnectionType.AGENCY_BUSINESS
+        ):
             granted = list(dict.fromkeys(requested_scopes or ["instagram_basic", "ads_read"]))
+            if cleaned == "mock_agency_biz_manage":
+                for scope in ("ads_read", "ads_management"):
+                    if scope not in granted:
+                        granted.append(scope)
             assets = [
                 DiscoveredMetaAsset(
                     asset_type=MetaAssetType.INSTAGRAM_PROFESSIONAL,

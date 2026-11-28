@@ -245,6 +245,26 @@ class PublishingJobStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class AdDraftStatus(StrEnum):
+    """Lifecycle states for approval-gated Meta ad campaign drafts (Section 8.6)."""
+
+    DRAFT = "draft"
+    VALIDATED = "validated"
+    PENDING_APPROVAL = "pending_approval"
+    EXECUTED = "executed"
+    FAILED = "failed"
+
+
+class AdObjective(StrEnum):
+    """Supported Meta Marketing API campaign objectives."""
+
+    OUTCOME_AWARENESS = "OUTCOME_AWARENESS"
+    OUTCOME_TRAFFIC = "OUTCOME_TRAFFIC"
+    OUTCOME_ENGAGEMENT = "OUTCOME_ENGAGEMENT"
+    OUTCOME_LEADS = "OUTCOME_LEADS"
+    OUTCOME_SALES = "OUTCOME_SALES"
+
+
 class AuditAction(StrEnum):
     """Canonical append-only audit log action identifiers."""
 
@@ -298,6 +318,16 @@ class AuditAction(StrEnum):
     PUBLISHING_JOB_PUBLISHED = "publishing_job.published"
     PUBLISHING_JOB_FAILED = "publishing_job.failed"
     INSIGHTS_SYNCED = "insights.synced"
+    AD_ACCOUNTS_SYNCED = "ads.accounts_synced"
+    AD_INSIGHTS_SYNCED = "ads.insights_synced"
+    AD_DRAFT_CREATED = "ads.draft_created"
+    AD_DRAFT_UPDATED = "ads.draft_updated"
+    AD_DRAFT_VALIDATED = "ads.draft_validated"
+    AD_DRAFT_APPROVAL_REQUESTED = "ads.draft_approval_requested"
+    AD_CAMPAIGN_EXECUTED = "ads.campaign_executed"
+    AD_BUDGET_APPROVAL_REQUESTED = "ads.budget_approval_requested"
+    AD_BUDGET_CHANGED = "ads.budget_changed"
+    AD_MUTATION_FAILED = "ads.mutation_failed"
 
 
 class ErrorCode(StrEnum):
@@ -331,6 +361,12 @@ class ErrorCode(StrEnum):
     CONTENT_APPROVAL_REQUIRED = "CONTENT_APPROVAL_REQUIRED"
     PUBLISHING_LIMIT_EXCEEDED = "PUBLISHING_LIMIT_EXCEEDED"
     CONTAINER_EXPIRED = "CONTAINER_EXPIRED"
+    ADS_APPROVAL_REQUIRED = "ADS_APPROVAL_REQUIRED"
+    ADS_APPROVAL_STALE = "ADS_APPROVAL_STALE"
+    ADS_DRAFT_VALIDATION_FAILED = "ADS_DRAFT_VALIDATION_FAILED"
+    ADS_KILL_SWITCH_ACTIVE = "ADS_KILL_SWITCH_ACTIVE"
+    ADS_BUDGET_CONFIRMATION_REQUIRED = "ADS_BUDGET_CONFIRMATION_REQUIRED"
+    ADS_SPEND_CAP_EXCEEDED = "ADS_SPEND_CAP_EXCEEDED"
     INVALID_TASK_TYPE = "INVALID_TASK_TYPE"
     SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
     VALIDATION_ERROR = "VALIDATION_ERROR"
