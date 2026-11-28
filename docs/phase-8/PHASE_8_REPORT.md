@@ -72,13 +72,13 @@
 ## 4. Phase 8b — Production prerequisites (code-complete)
 
 - **Persistent vault:** new `DbSecretStore` (AES-256-GCM envelopes in workspace-isolated
-  `secret_vault`, migration `0011`, FORCE RLS). `SECRET_STORE_BACKEND=db` outside dev/test;
-  in-memory store and missing vault keys fail fast at boot.
-- **Deploy migrations:** `api-entrypoint.sh` runs `alembic upgrade head` (owner `DATABASE_URL`)
-  before serving; `render.yaml` declares `DATABASE_URL`, Upstash `REDIS_URL`, vault key,
-  and Meta/Google credential slots.
-- **Redis sessions:** missing `REDIS_URL` outside dev/test fails fast at boot.
-- **Live validation:** boot rejects live modes without credentials and mistyped modes.
+  `secret_vault`, migration `0011`, FORCE RLS). Memory vault + live connections is a boot
+  error; memory vault + mock modes outside dev/test emits a loud warning and keeps serving.
+- **Deploy migrations:** `api-entrypoint.sh` runs `alembic upgrade head` when an owner URL is
+  configured (aborts boot on failure), otherwise warns and serves; `render.yaml` declares
+  `DATABASE_URL`, Upstash `REDIS_URL`, vault key, and Meta/Google credential slots.
+- **Redis sessions:** missing `REDIS_URL` outside dev/test warns and falls back to memory.
+- **Live validation:** boot rejects mistyped modes and live modes without credentials.
 - **Live OAuth completion:** new `/connections/callback` page decodes the workspace from state
   and completes Unified Login; connections start passes the explicit callback URI (must be
   allowlisted + registered in the Meta dashboard).

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -21,9 +22,7 @@ from packages.auth import (
     SupabaseJwksCache,
     build_supabase_jwks_url,
     decode_hs256_token,
-    resolve_google_auth_mode,
     resolve_jwt_secret,
-    resolve_meta_auth_mode,
     verify_supabase_jwt_from_settings,
 )
 from packages.media_engine import CloudEditingService, RenderBackend, create_render_backend
@@ -94,20 +93,35 @@ class InMemoryRateLimiter:
 
 
 def _validate_production_settings(settings: BaseAppSettings) -> None:
-    """Fail fast at boot when live modes lack credentials or modes are mistyped."""
-    resolve_meta_auth_mode(settings)
-    resolve_google_auth_mode(settings)
+    """Fail fast at boot when modes are mistyped or live modes lack credentials.
+
+    Mock modes stay boot-safe in every environment (preview runs mock); the
+    dev/test-only restriction on mock identity logins is still enforced per
+    request by the OAuth adapters themselves.
+    """
+    meta_mode = settings.meta_auth_mode.strip().lower() or "mock_dev"
+    google_mode = settings.google_auth_mode.strip().lower() or "mock_dev"
     connections_mode = settings.meta_connections_mode.strip().lower() or "mock"
+    if meta_mode not in {"mock_dev", "live"}:
+        raise RuntimeError(
+            f"Unsupported META_AUTH_MODE '{settings.meta_auth_mode}' "
+            "(expected 'mock_dev' or 'live')"
+        )
+    if google_mode not in {"mock_dev", "live"}:
+        raise RuntimeError(
+            f"Unsupported GOOGLE_AUTH_MODE '{settings.google_auth_mode}' "
+            "(expected 'mock_dev' or 'live')"
+        )
     if connections_mode not in {"mock", "live"}:
         raise RuntimeError(
             f"Unsupported META_CONNECTIONS_MODE '{settings.meta_connections_mode}' "
             "(expected 'mock' or 'live')"
         )
-    if settings.meta_auth_mode.strip().lower() == "live" and (
+    if meta_mode == "live" and (
         not settings.meta_app_id.strip() or not settings.meta_app_secret.get_secret_value().strip()
     ):
         raise RuntimeError("META_AUTH_MODE=live requires META_APP_ID and META_APP_SECRET")
-    if settings.google_auth_mode.strip().lower() == "live" and (
+    if google_mode == "live" and (
         not settings.google_client_id.strip()
         or not settings.google_client_secret.get_secret_value().strip()
     ):
@@ -178,13 +192,16 @@ class AppContainer:
             redis_dsn = settings.redis_url.get_secret_value().strip()
             if redis_dsn and not settings.is_dev_env():
                 resolved_store = RedisSessionStore.from_url(redis_dsn)
-            elif settings.is_dev_env():
-                resolved_store = InMemorySessionStore()
             else:
-                raise RuntimeError(
-                    "REDIS_URL must be configured outside development/test environments "
-                    "(sessions must survive restarts and be shared across instances)"
-                )
+                if not settings.is_dev_env():
+                    print(
+                        "WARNING: REDIS_URL is not set; using in-memory sessions that "
+                        "vanish on restart. Set REDIS_URL (Upstash free tier) for any "
+                        "deployed environment.",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                resolved_store = InMemorySessionStore()
 
         resolved_jwks = supabase_jwks_cache
         resolved_sb_url = (settings.supabase_url or settings.next_public_supabase_url).strip()
@@ -233,9 +250,17 @@ class AppContainer:
                 resolved_secret_store = DbSecretStore.from_settings(resolved_factory, settings)
             elif backend in {"", "memory", "env_dev"}:
                 if not settings.is_dev_env():
-                    raise RuntimeError(
-                        "In-memory secret store is dev/test-only; set SECRET_STORE_BACKEND=db "
-                        "outside development (tokens must survive restarts)"
+                    if settings.meta_connections_mode.strip().lower() == "live":
+                        raise RuntimeError(
+                            "SECRET_STORE_BACKEND=db is required when "
+                            "META_CONNECTIONS_MODE=live (real Meta tokens must survive "
+                            "restarts)"
+                        )
+                    print(
+                        "WARNING: using in-memory secret vault; tokens vanish on restart. "
+                        "Set SECRET_STORE_BACKEND=db for any deployed environment.",
+                        file=sys.stderr,
+                        flush=True,
                     )
                 resolved_secret_store = EncryptedSecretStore.from_settings(settings)
             else:

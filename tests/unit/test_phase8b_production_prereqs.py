@@ -91,29 +91,55 @@ def test_memory_vault_roundtrip_and_wrong_key_decrypt_failure() -> None:
 
 
 def _staging_live_settings(**overrides: Any) -> BaseAppSettings:
-    return _settings(
-        app_env="staging",
-        meta_auth_mode="live",
-        meta_app_id="meta-app-id",
-        meta_app_secret=SecretStr("meta-app-secret-value"),
-        google_auth_mode="live",
-        google_client_id="google-client-id",
-        google_client_secret=SecretStr("google-client-secret"),
-        meta_connections_mode="mock",
-        **overrides,
-    )
+    kwargs: dict[str, Any] = {
+        "app_env": "staging",
+        "meta_auth_mode": "live",
+        "meta_app_id": "meta-app-id",
+        "meta_app_secret": SecretStr("meta-app-secret-value"),
+        "google_auth_mode": "live",
+        "google_client_id": "google-client-id",
+        "google_client_secret": SecretStr("google-client-secret"),
+        "meta_connections_mode": "mock",
+    }
+    kwargs.update(overrides)
+    return _settings(**kwargs)
 
 
-def test_boot_fails_fast_without_redis_outside_dev() -> None:
-    staging = _staging_live_settings(redis_url=SecretStr(""))
-    with pytest.raises(RuntimeError, match="REDIS_URL"):
-        AppContainer.from_settings(staging, session_factory=None, enable_db=False)
+def test_boot_warns_and_continues_without_redis_outside_dev(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Exact preview scenario: staging + mock modes + empty Redis + memory vault boots.
+    staging = _settings(app_env="staging", redis_url=SecretStr(""))
+    container = AppContainer.from_settings(staging, session_factory=None, enable_db=False)
+    assert isinstance(container.session_store, InMemorySessionStore)
+    assert isinstance(container.secret_store, EncryptedSecretStore)
+    assert "REDIS_URL" in capsys.readouterr().err
 
 
-def test_boot_fails_fast_on_memory_vault_outside_dev() -> None:
+def test_boot_warns_on_memory_vault_with_mock_modes_outside_dev(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     staging = _staging_live_settings(
         redis_url=SecretStr("redis://localhost:6379/0"),
         secret_store_backend="memory",
+    )
+    container = AppContainer.from_settings(
+        staging,
+        session_factory=None,
+        session_store=InMemorySessionStore(),
+        enable_db=False,
+    )
+    assert isinstance(container.secret_store, EncryptedSecretStore)
+    assert "SECRET_STORE_BACKEND=db" in capsys.readouterr().err
+
+
+def test_boot_fails_fast_on_memory_vault_with_live_connections() -> None:
+    staging = _staging_live_settings(
+        redis_url=SecretStr("redis://localhost:6379/0"),
+        secret_store_backend="memory",
+        meta_connections_mode="live",
+        meta_app_id="meta-app-id",
+        meta_app_secret=SecretStr("meta-app-secret-value"),
     )
     with pytest.raises(RuntimeError, match="SECRET_STORE_BACKEND=db"):
         AppContainer.from_settings(

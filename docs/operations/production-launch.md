@@ -105,9 +105,12 @@ Flip one, redeploy, verify boot logs, then the next:
 2. `META_AUTH_MODE=live` → test Meta signup on preview.
 3. `META_CONNECTIONS_MODE=live` → test Connections → Ads → Publishing on preview.
 
-The API fails fast at boot with an explicit message if any live mode lacks credentials,
-so a bad flip surfaces in deploy logs, not as silent breakage. Keep `*_MODE=mock_*`
-locally — live flags belong only in deployed environments.
+The API fails fast at boot with an explicit message if any live mode lacks credentials
+or a live connections mode is paired with the memory vault, so a bad flip surfaces in
+deploy logs, not as silent breakage. Missing `REDIS_URL` / `SECRET_STORE_BACKEND=db` /
+`DATABASE_URL` in a mock-mode deploy only emit loud `WARNING` lines and keep serving
+(previous behavior), so preview stays green until you complete Steps 5–6. Keep
+`*_MODE=mock_*` locally — live flags belong only in deployed environments.
 
 ## Step 8 — Verify (15 min, you)
 

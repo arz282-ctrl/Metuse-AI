@@ -4,8 +4,13 @@ set -eu
 PORT="${PORT:-8000}"
 
 if [ -f /app/apps/api/main.py ]; then
-  echo "Applying database migrations (DATABASE_URL owner role)..."
-  uv run --no-sync alembic upgrade head
+  if [ -n "${MIGRATION_DATABASE_URL:-}" ] || [ -n "${DATABASE_URL:-}" ]; then
+    echo "Applying database migrations (owner role)..."
+    uv run --no-sync alembic upgrade head
+  else
+    echo "WARNING: MIGRATION_DATABASE_URL/DATABASE_URL not set; skipping boot migrations." >&2
+    echo "WARNING: Set DATABASE_URL (owner role) so schema changes apply on deploy." >&2
+  fi
   exec uv run --no-sync uvicorn apps.api.main:app --host 0.0.0.0 --port "$PORT"
 fi
 
