@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from apps.api.deps import AppContainer
 from apps.api.observability import init_sentry
 from apps.api.routes import (
+    ads,
     approvals,
     audit,
     auth,
@@ -121,6 +122,7 @@ def create_app(
     app.include_router(approvals.router)
     app.include_router(meta.router)
     app.include_router(publishing.router)
+    app.include_router(ads.router)
     app.include_router(audit.router)
     return app
 

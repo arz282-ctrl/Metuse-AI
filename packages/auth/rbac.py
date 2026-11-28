@@ -23,6 +23,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "meta:*",
             "publishing:*",
             "analytics:*",
+            "ads:*",
             "usage:read",
             "budgets:*",
             "audit:read",
@@ -43,6 +44,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "meta:*",
             "publishing:*",
             "analytics:*",
+            "ads:*",
             "usage:read",
             "budgets:manage",
             "audit:read",
@@ -71,6 +73,8 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "publishing:write",
             "analytics:read",
             "analytics:sync",
+            "ads:read",
+            "ads:write",
             "usage:read",
         }
     ),
@@ -88,6 +92,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "meta:*",
             "publishing:*",
             "analytics:*",
+            "ads:*",
             "usage:read",
             "budgets:*",
             "audit:read",
@@ -107,6 +112,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "meta:read",
             "publishing:read",
             "analytics:read",
+            "ads:read",
             "deliverables:approve",
         }
     ),
@@ -123,6 +129,7 @@ ROLE_PERMISSIONS: dict[RoleName, frozenset[str]] = {
             "meta:read",
             "publishing:read",
             "analytics:read",
+            "ads:read",
         }
     ),
 }

@@ -26,10 +26,13 @@ from packages.auth import (
 )
 from packages.media_engine import CloudEditingService, RenderBackend, create_render_backend
 from packages.meta_integrations import (
+    AdsOperationsService,
     EncryptedSecretStore,
+    MetaAdsClient,
     MetaConnectionService,
     MetaGraphClient,
     MetaPublisherClient,
+    MockMetaAdsClient,
     MockMetaPublisherClient,
     PublishingAndInsightsService,
     SecretStore,
@@ -101,6 +104,7 @@ class AppContainer:
     secret_store: SecretStore
     meta_service: MetaConnectionService
     publishing_service: PublishingAndInsightsService
+    ads_service: AdsOperationsService
     supabase_jwks_cache: SupabaseJwksCache | None = None
 
     @classmethod
@@ -119,6 +123,7 @@ class AppContainer:
         meta_graph_client: MetaGraphClient | None = None,
         secret_store: SecretStore | None = None,
         publisher_client: MetaPublisherClient | None = None,
+        ads_client: MetaAdsClient | None = None,
         enable_db: bool = True,
     ) -> AppContainer:
         resolved_factory = session_factory
@@ -189,6 +194,13 @@ class AppContainer:
             storage=resolved_storage,
             publisher=resolved_publisher,
         )
+        resolved_ads_client = ads_client or MockMetaAdsClient()
+        resolved_ads_service = AdsOperationsService(
+            settings=settings,
+            meta_service=resolved_meta_service,
+            secret_store=resolved_secret_store,
+            ads_client=resolved_ads_client,
+        )
 
         return cls(
             settings=settings,
@@ -204,6 +216,7 @@ class AppContainer:
             secret_store=resolved_secret_store,
             meta_service=resolved_meta_service,
             publishing_service=resolved_publishing_service,
+            ads_service=resolved_ads_service,
             supabase_jwks_cache=resolved_jwks,
         )
 
