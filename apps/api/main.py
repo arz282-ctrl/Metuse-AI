@@ -22,6 +22,7 @@ from apps.api.routes import (
     editing,
     health,
     jobs,
+    legal,
     meta,
     projects,
     publishing,
@@ -110,6 +111,7 @@ def create_app(
         return JSONResponse(status_code=exc.status_code, content=envelope.model_dump())
 
     app.include_router(health.router)
+    app.include_router(legal.router)
     app.include_router(auth.router)
     app.include_router(workspaces.router)
     app.include_router(clients.router)

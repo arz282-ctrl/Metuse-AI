@@ -357,6 +357,33 @@ class LiveMetaGraphClient:
                             )
                         )
 
+            if set(granted_scopes) & {"ads_read", "ads_management"}:
+                ad_resp = client.get(
+                    f"{self._graph_base_url}/{self._api_version}/me/adaccounts",
+                    params={
+                        "fields": "id,name,account_id,currency,timezone_name,account_status",
+                        "limit": 100,
+                        "access_token": access_token,
+                    },
+                )
+                if ad_resp.status_code == 200:
+                    for acct in ad_resp.json().get("data", []):
+                        external_id = str(acct.get("id") or "").strip()
+                        if external_id:
+                            discovered.append(
+                                DiscoveredMetaAsset(
+                                    asset_type=MetaAssetType.AD_ACCOUNT,
+                                    external_asset_id=external_id,
+                                    display_name=str(acct.get("name") or external_id),
+                                    is_selected=True,
+                                    metadata={
+                                        "currency": str(acct.get("currency") or ""),
+                                        "timezone_name": str(acct.get("timezone_name") or ""),
+                                        "account_status": str(acct.get("account_status") or ""),
+                                    },
+                                )
+                            )
+
             return MetaTokenExchangeResult(
                 access_token=access_token,
                 token_type=(

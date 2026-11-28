@@ -24,6 +24,19 @@ export interface AuthTokenResponse {
   user: AuthUser;
 }
 
+export type SocialProvider = "meta" | "google";
+
+export interface SocialLoginStartResponse {
+  authorization_url: string;
+  state: string;
+  mode: string;
+}
+
+export interface SocialAuthTokenResponse extends AuthTokenResponse {
+  is_new_user: boolean;
+  workspace_id: string | null;
+}
+
 export interface MembershipSummary {
   workspace_id: string;
   workspace_name: string;

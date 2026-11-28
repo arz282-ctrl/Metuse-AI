@@ -18,9 +18,9 @@ from packages.auth.sessions import SessionStore
 from packages.shared.config import BaseAppSettings
 from packages.shared.errors import BadRequestError, ExternalServiceError
 
-_META_AUTHORIZE_URL = "https://www.facebook.com/v21.0/dialog/oauth"
-_META_TOKEN_URL = "https://graph.facebook.com/v21.0/oauth/access_token"  # noqa: S105
-_META_ME_URL = "https://graph.facebook.com/v21.0/me"
+_META_AUTHORIZE_URL = "https://www.facebook.com/v22.0/dialog/oauth"
+_META_TOKEN_URL = "https://graph.facebook.com/v22.0/oauth/access_token"  # noqa: S105
+_META_ME_URL = "https://graph.facebook.com/v22.0/me"
 _META_IDENTITY_SCOPES = "email,public_profile"
 _META_MOCK_ALLOWED_ENVS = frozenset({"development", "test"})
 

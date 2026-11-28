@@ -288,9 +288,11 @@ def test_alembic_migration_graph_has_single_linear_head() -> None:
     script = ScriptDirectory.from_config(cfg)
 
     heads = script.get_heads()
-    assert heads == ["0009_phase7_ads_and_controlled_execution"]
+    assert heads == ["0011_phase8b_persistent_secret_vault"]
     revisions = [rev.revision for rev in script.walk_revisions()]
     assert revisions == [
+        "0011_phase8b_persistent_secret_vault",
+        "0010_phase8_social_auth_and_capi",
         "0009_phase7_ads_and_controlled_execution",
         "0008_phase6_publishing_and_insights",
         "0007_phase5_meta_connections",

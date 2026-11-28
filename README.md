@@ -86,5 +86,6 @@ uv run pytest tests/integration -v   # requires live PostgreSQL 16 (Supabase or 
 | 5 - Meta Unified Login & connections | Complete ([report](docs/phase-5/PHASE_5_REPORT.md)) |
 | 6 - Approval-gated publishing & insights | Complete ([report](docs/phase-6/PHASE_6_REPORT.md)) |
 | 7 - Ads read & controlled execution + 18-test acceptance | Complete ([report](docs/phase-7/PHASE_7_AND_ACCEPTANCE_REPORT.md)) |
+| 8 - Social auth (Meta/Google), prompt ads, CAPI + production hardening | Complete ([report](docs/phase-8/PHASE_8_REPORT.md)) |
 
 Secrets: never commit. Use `.env.example` as a template only.

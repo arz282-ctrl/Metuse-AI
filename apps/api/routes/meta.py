@@ -60,6 +60,19 @@ class ReconnectPayload(BaseModel):
     redirect_uri: str | None = Field(default=None, max_length=512)
 
 
+class AssetSelectionItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset_id: UUID
+    is_selected: bool
+
+
+class UpdateAssetSelectionPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    selections: list[AssetSelectionItem] = Field(min_length=1, max_length=200)
+
+
 def _require_ws_perm(ctx: TenantContext, permission: str) -> None:
     if ctx.role_name is None:
         raise WorkspaceAccessDeniedError("Access to the requested workspace is denied")
@@ -255,6 +268,7 @@ def get_meta_connection_assets(
     session_factory: Annotated[sessionmaker[Session], Depends(get_session_factory)],
     container: Annotated[AppContainer, Depends(get_container)],
     request_id: Annotated[UUID, Depends(get_request_id)],
+    include_deselected: Annotated[bool, Query()] = False,
 ) -> list[MetaConnectedAssetView]:
     with tenant_transaction(
         session_factory,
@@ -264,7 +278,37 @@ def get_meta_connection_assets(
     ) as (session, ctx):
         _require_ws_perm(ctx, "meta:read")
         return container.meta_service.list_connection_assets(
-            session, workspace_id=workspace_id, connection_id=connection_id
+            session,
+            workspace_id=workspace_id,
+            connection_id=connection_id,
+            include_deselected=include_deselected,
+        )
+
+
+@router.patch("/connections/{connection_id}/assets", response_model=MetaConnectionView)
+def patch_meta_connection_assets(
+    workspace_id: UUID,
+    connection_id: UUID,
+    body: UpdateAssetSelectionPayload,
+    actor: Annotated[AuthenticatedActor, Depends(get_current_actor)],
+    session_factory: Annotated[sessionmaker[Session], Depends(get_session_factory)],
+    container: Annotated[AppContainer, Depends(get_container)],
+    request_id: Annotated[UUID, Depends(get_request_id)],
+) -> MetaConnectionView:
+    with tenant_transaction(
+        session_factory,
+        user_id=actor.user_id,
+        workspace_id=workspace_id,
+        request_id=request_id,
+    ) as (session, ctx):
+        _require_ws_perm(ctx, "meta:write")
+        return container.meta_service.update_asset_selection(
+            session,
+            workspace_id=workspace_id,
+            connection_id=connection_id,
+            actor_user_id=actor.user_id,
+            selections={item.asset_id: item.is_selected for item in body.selections},
+            request_id=request_id,
         )
 
 

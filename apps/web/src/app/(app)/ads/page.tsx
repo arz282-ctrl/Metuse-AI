@@ -18,7 +18,9 @@ import {
   type AdAccountRecord,
   type AdCampaignSnapshotRecord,
   type AdDraftRecord,
+  type CapiEventReceipt,
 } from "@/lib/ads-api";
+import { metaApi, type MetaConnectedAssetRecord } from "@/lib/meta-api";
 import {
   Card,
   CardContent,
@@ -48,16 +50,27 @@ export default function AdsConsolePage() {
   const [draftName, setDraftName] = useState("Q4 Approved Reels Launch");
   const [draftBudgetUsd, setDraftBudgetUsd] = useState("50");
   const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [prompt, setPrompt] = useState(
+    "Launch a traffic campaign for our reels editing service targeting US creators aged 21-45 with a $50 daily budget."
+  );
+  const [pageAssets, setPageAssets] = useState<MetaConnectedAssetRecord[]>([]);
+  const [selectedPageAssetId, setSelectedPageAssetId] = useState("");
+  const [pixelInput, setPixelInput] = useState("");
+  const [capiEventName, setCapiEventName] = useState("Lead");
+  const [capiEmail, setCapiEmail] = useState("");
+  const [capiTestCode, setCapiTestCode] = useState("TEST12345");
+  const [capiReceipt, setCapiReceipt] = useState<CapiEventReceipt | null>(null);
 
   const loadData = useCallback(async () => {
     if (!activeWorkspace) return;
     setLoading(true);
     setError(null);
     try {
-      const [acctList, campList, draftList] = await Promise.all([
+      const [acctList, campList, draftList, connList] = await Promise.all([
         adsApi.listAccounts(activeWorkspace.workspace_id),
         adsApi.listCampaigns(activeWorkspace.workspace_id),
         adsApi.listDrafts(activeWorkspace.workspace_id),
+        metaApi.listConnections(activeWorkspace.workspace_id),
       ]);
       setAccounts(acctList);
       setCampaigns(campList);
@@ -65,12 +78,22 @@ export default function AdsConsolePage() {
       if (acctList.length > 0 && !selectedAccountId) {
         setSelectedAccountId(acctList[0].id);
       }
+      const pageLists = await Promise.all(
+        connList.map((c) => metaApi.listAssets(activeWorkspace.workspace_id, c.id, false))
+      );
+      const pages = pageLists
+        .flat()
+        .filter((a) => a.asset_type === "facebook_page" && a.is_selected);
+      setPageAssets(pages);
+      if (pages.length > 0 && !selectedPageAssetId) {
+        setSelectedPageAssetId(pages[0].id);
+      }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Failed to load Ads console.");
     } finally {
       setLoading(false);
     }
-  }, [activeWorkspace, selectedAccountId]);
+  }, [activeWorkspace, selectedAccountId, selectedPageAssetId]);
 
   useEffect(() => {
     void loadData();
@@ -148,6 +171,84 @@ export default function AdsConsolePage() {
       await loadData();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : "Approval request failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handlePromptDraft(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeWorkspace || !selectedAccountId) return;
+    setBusyId("prompt");
+    setError(null);
+    setNotice(null);
+    try {
+      const draft = await adsApi.createPromptDraft(activeWorkspace.workspace_id, {
+        ad_account_id: selectedAccountId,
+        page_asset_id: selectedPageAssetId || null,
+        prompt: prompt.trim(),
+      });
+      setNotice(
+        draft.validation_passed
+          ? `Prompt draft "${draft.name}" created and validated. Request approval to execute.`
+          : `Prompt draft created but needs attention: ${(draft.validation_report.errors ?? []).join("; ")}`
+      );
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : "Prompt draft failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleSavePixel(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeWorkspace || !selectedAccountId) return;
+    setBusyId("pixel");
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await adsApi.updatePixel(
+        activeWorkspace.workspace_id,
+        selectedAccountId,
+        pixelInput.trim() || null
+      );
+      setNotice(
+        updated.pixel_dataset_id
+          ? `Bound pixel ${updated.pixel_dataset_id} to ${updated.name}.`
+          : `Cleared pixel binding on ${updated.name}.`
+      );
+      setPixelInput("");
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : "Pixel update failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleCapiTest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activeWorkspace || !selectedAccountId) return;
+    setBusyId("capi");
+    setError(null);
+    setNotice(null);
+    setCapiReceipt(null);
+    try {
+      const receipt = await adsApi.sendCapiEvent(activeWorkspace.workspace_id, {
+        ad_account_id: selectedAccountId,
+        event_name: capiEventName.trim() || "Lead",
+        email: capiEmail.trim() || undefined,
+        test_event_code: capiTestCode.trim() || undefined,
+      });
+      setCapiReceipt(receipt);
+      setNotice(
+        receipt.test_mode
+          ? `CAPI test event accepted (${receipt.events_received} received, trace ${receipt.fbtrace_id ?? "n/a"}).`
+          : `CAPI live event sent (${receipt.events_received} received).`
+      );
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : "CAPI event failed.");
     } finally {
       setBusyId(null);
     }
@@ -258,6 +359,7 @@ export default function AdsConsolePage() {
               <CardContent className="space-y-1 text-xs text-muted-foreground">
                 <p>Amount Spent: {formatUsd(acct.amount_spent_cents)}</p>
                 <p>Spend Cap: {formatUsd(acct.spend_cap_cents)}</p>
+                <p>Pixel: {acct.pixel_dataset_id ?? "not bound"}</p>
               </CardContent>
             </Card>
           ))
@@ -302,6 +404,65 @@ export default function AdsConsolePage() {
                 )}
               </div>
             ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Single-Prompt Campaign Builder */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Single-Prompt Campaign Builder</CardTitle>
+          <CardDescription>
+            Describe the campaign once; Metuse drafts structure, budget, targeting, and
+            creative brief. Still zero spend until validated and explicitly approved.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Sync an ad account first to enable prompt drafting.
+            </p>
+          ) : (
+            <form onSubmit={(e) => void handlePromptDraft(e)} className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <select
+                  aria-label="Ad account"
+                  value={selectedAccountId}
+                  onChange={(e) => setSelectedAccountId(e.target.value)}
+                  className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Facebook Page"
+                  value={selectedPageAssetId}
+                  onChange={(e) => setSelectedPageAssetId(e.target.value)}
+                  className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                >
+                  <option value="">No Page attached</option>
+                  {pageAssets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.display_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={3}
+                maxLength={2000}
+                placeholder="Describe the campaign goal, audience, and budget…"
+                className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+              />
+              <Button type="submit" size="sm" disabled={busyId === "prompt"}>
+                {busyId === "prompt" ? "Drafting…" : "Generate Draft from Prompt"}
+              </Button>
+            </form>
           )}
         </CardContent>
       </Card>
@@ -405,6 +566,76 @@ export default function AdsConsolePage() {
                 )}
               </div>
             ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Conversions API */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Conversions API</CardTitle>
+          <CardDescription>
+            Bind a pixel to an ad account, then send hashed server events. Test codes
+            stay in test mode; live sends require execution rights.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Sync an ad account first to enable Conversions API.
+            </p>
+          ) : (
+            <>
+              <form onSubmit={(e) => void handleSavePixel(e)} className="flex flex-wrap gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={pixelInput}
+                  onChange={(e) => setPixelInput(e.target.value)}
+                  placeholder="Pixel / dataset ID (empty clears)"
+                  className="min-w-[220px] flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                />
+                <Button type="submit" size="sm" disabled={busyId === "pixel"}>
+                  Save Pixel
+                </Button>
+              </form>
+              <form onSubmit={(e) => void handleCapiTest(e)} className="flex flex-wrap gap-2">
+                <input
+                  type="text"
+                  value={capiEventName}
+                  onChange={(e) => setCapiEventName(e.target.value)}
+                  placeholder="Event name (Lead, Purchase…)"
+                  aria-label="Event name"
+                  className="w-40 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                />
+                <input
+                  type="email"
+                  value={capiEmail}
+                  onChange={(e) => setCapiEmail(e.target.value)}
+                  placeholder="User email (hashed server-side)"
+                  aria-label="User email"
+                  className="min-w-[200px] flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                />
+                <input
+                  type="text"
+                  value={capiTestCode}
+                  onChange={(e) => setCapiTestCode(e.target.value)}
+                  placeholder="Test event code (empty = live)"
+                  aria-label="Test event code"
+                  className="w-44 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs"
+                />
+                <Button type="submit" size="sm" disabled={busyId === "capi"}>
+                  {busyId === "capi" ? "Sending…" : "Send Event"}
+                </Button>
+              </form>
+              {capiReceipt && (
+                <p className="text-xs text-muted-foreground">
+                  Receipt: {capiReceipt.event_name} → pixel {capiReceipt.pixel_dataset_id} ·{" "}
+                  {capiReceipt.test_mode ? "test mode" : "LIVE"} · received{" "}
+                  {capiReceipt.events_received} · id {capiReceipt.event_id}
+                </p>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

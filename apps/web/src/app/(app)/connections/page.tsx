@@ -8,6 +8,7 @@ import { ApiClientError, apiClient } from "@/lib/api-client";
 import type { ClientRecord } from "@/lib/types";
 import {
   metaApi,
+  type MetaConnectedAssetRecord,
   type MetaConnectionRecord,
   type MetaConnectionType,
   type PermissionMatrixEntry,
@@ -37,6 +38,9 @@ export default function MetaConnectionsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [expandedConn, setExpandedConn] = useState<string | null>(null);
+  const [assetsByConn, setAssetsByConn] = useState<Record<string, MetaConnectedAssetRecord[]>>({});
+  const [savingAssets, setSavingAssets] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!activeWorkspace) return;
@@ -68,9 +72,11 @@ export default function MetaConnectionsPage() {
     setError(null);
     setNotice(null);
     try {
+      const callbackUri = `${window.location.origin}/connections/callback`;
       const start = await metaApi.startUnifiedLogin(activeWorkspace.workspace_id, {
         connection_type: connectionType,
         client_id: selectedClientId || null,
+        redirect_uri: callbackUri,
         include_ads: includeAds,
       });
 
@@ -95,6 +101,47 @@ export default function MetaConnectionsPage() {
       setError(err instanceof ApiClientError ? err.message : "Meta connection failed.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleToggleAssets(connectionId: string) {
+    if (!activeWorkspace) return;
+    if (expandedConn === connectionId) {
+      setExpandedConn(null);
+      return;
+    }
+    setError(null);
+    try {
+      const assets = await metaApi.listAssets(
+        activeWorkspace.workspace_id,
+        connectionId,
+        true
+      );
+      setAssetsByConn((prev) => ({ ...prev, [connectionId]: assets }));
+      setExpandedConn(connectionId);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : "Failed to load assets.");
+    }
+  }
+
+  async function handleSaveAssets(connectionId: string) {
+    if (!activeWorkspace) return;
+    const assets = assetsByConn[connectionId] ?? [];
+    setSavingAssets(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await metaApi.updateAssetSelection(
+        activeWorkspace.workspace_id,
+        connectionId,
+        assets.map((a) => ({ asset_id: a.id, is_selected: a.is_selected }))
+      );
+      setNotice("Asset selection updated; capabilities recomputed server-side.");
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : "Failed to save assets.");
+    } finally {
+      setSavingAssets(false);
     }
   }
 
@@ -267,15 +314,25 @@ export default function MetaConnectionsPage() {
                         )}
                       </div>
                       {conn.status !== "disconnected" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => void handleDisconnect(conn.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Disconnect
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => void handleToggleAssets(conn.id)}
+                          >
+                            {expandedConn === conn.id ? "Hide assets" : "Manage assets"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => void handleDisconnect(conn.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Disconnect
+                          </Button>
+                        </div>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -283,6 +340,48 @@ export default function MetaConnectionsPage() {
                       {conn.page_ids.join(", ") || "none"} · Ad Accounts:{" "}
                       {conn.ad_account_ids.join(", ") || "none"}
                     </p>
+                    {expandedConn === conn.id && (
+                      <div className="space-y-1.5 rounded-md border border-border/60 p-2">
+                        {(assetsByConn[conn.id] ?? []).length === 0 ? (
+                          <p className="text-xs text-muted-foreground">No assets persisted.</p>
+                        ) : (
+                          (assetsByConn[conn.id] ?? []).map((asset) => (
+                            <label
+                              key={asset.id}
+                              className="flex items-center gap-2 text-xs text-muted-foreground"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={asset.is_selected}
+                                disabled={!asset.is_eligible || savingAssets}
+                                onChange={(e) =>
+                                  setAssetsByConn((prev) => ({
+                                    ...prev,
+                                    [conn.id]: (prev[conn.id] ?? []).map((a) =>
+                                      a.id === asset.id
+                                        ? { ...a, is_selected: e.target.checked }
+                                        : a
+                                    ),
+                                  }))
+                                }
+                              />
+                              <span className="font-medium text-foreground">
+                                {asset.display_name}
+                              </span>
+                              <code>{asset.asset_type}</code>
+                              {!asset.is_eligible && <span>(ineligible)</span>}
+                            </label>
+                          ))
+                        )}
+                        <Button
+                          size="sm"
+                          disabled={savingAssets}
+                          onClick={() => void handleSaveAssets(conn.id)}
+                        >
+                          {savingAssets ? "Saving…" : "Save selection"}
+                        </Button>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       {Object.entries(conn.capabilities).map(([cap, enabled]) => (
                         <Badge

@@ -18,6 +18,7 @@ from apps.api.deps import (
     get_session_factory,
 )
 from packages.auth import require_permission
+from packages.meta_integrations import CapiEventReceiptView, build_capi_user_data
 from packages.meta_integrations.ads import (
     AdAccountView,
     AdApprovalRequestView,
@@ -53,6 +54,40 @@ class UpdateAdDraftPayload(BaseModel):
     daily_budget_cents: int | None = Field(default=None, gt=0)
     targeting: dict[str, Any] | None = None
     creative_refs: list[str] | None = None
+
+
+class CreatePromptDraftPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ad_account_id: UUID
+    page_asset_id: UUID | None = None
+    prompt: str = Field(min_length=8, max_length=2000)
+    creative_refs: list[str] = Field(default_factory=list, max_length=10)
+
+
+class UpdatePixelPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pixel_dataset_id: str | None = Field(default=None, max_length=32)
+
+
+class SendCapiEventPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ad_account_id: UUID
+    event_name: str = Field(min_length=1, max_length=64)
+    email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=40)
+    client_ip_address: str | None = Field(default=None, max_length=64)
+    client_user_agent: str | None = Field(default=None, max_length=512)
+    fbp: str | None = Field(default=None, max_length=128)
+    fbc: str | None = Field(default=None, max_length=256)
+    external_id: str | None = Field(default=None, max_length=128)
+    custom_data: dict[str, Any] = Field(default_factory=dict)
+    event_source_url: str | None = Field(default=None, max_length=1024)
+    action_source: str = Field(default="website", max_length=32)
+    event_id: str | None = Field(default=None, max_length=128)
+    test_event_code: str | None = Field(default=None, max_length=64)
 
 
 class RequestBudgetChangePayload(BaseModel):
@@ -193,6 +228,62 @@ def post_create_ad_draft(
             daily_budget_cents=body.daily_budget_cents,
             targeting=body.targeting,
             creative_refs=body.creative_refs,
+            request_id=request_id,
+        )
+
+
+@router.post("/prompt-drafts", response_model=AdDraftView, status_code=status.HTTP_201_CREATED)
+def post_create_prompt_draft(
+    workspace_id: UUID,
+    body: CreatePromptDraftPayload,
+    actor: Annotated[AuthenticatedActor, Depends(get_current_actor)],
+    session_factory: Annotated[sessionmaker[Session], Depends(get_session_factory)],
+    container: Annotated[AppContainer, Depends(get_container)],
+    request_id: Annotated[UUID, Depends(get_request_id)],
+) -> AdDraftView:
+    with tenant_transaction(
+        session_factory,
+        user_id=actor.user_id,
+        workspace_id=workspace_id,
+        request_id=request_id,
+    ) as (session, ctx):
+        _require_ws_perm(ctx, "ads:write")
+        return container.ads_service.create_prompt_draft(
+            session,
+            workspace_id=workspace_id,
+            actor_user_id=actor.user_id,
+            ad_account_id=body.ad_account_id,
+            prompt=body.prompt,
+            page_asset_id=body.page_asset_id,
+            creative_refs=body.creative_refs,
+            muse_adapter=container.muse_adapter,
+            request_id=request_id,
+        )
+
+
+@router.patch("/accounts/{account_id}", response_model=AdAccountView)
+def patch_ad_account_pixel(
+    workspace_id: UUID,
+    account_id: UUID,
+    body: UpdatePixelPayload,
+    actor: Annotated[AuthenticatedActor, Depends(get_current_actor)],
+    session_factory: Annotated[sessionmaker[Session], Depends(get_session_factory)],
+    container: Annotated[AppContainer, Depends(get_container)],
+    request_id: Annotated[UUID, Depends(get_request_id)],
+) -> AdAccountView:
+    with tenant_transaction(
+        session_factory,
+        user_id=actor.user_id,
+        workspace_id=workspace_id,
+        request_id=request_id,
+    ) as (session, ctx):
+        _require_ws_perm(ctx, "ads:write")
+        return container.ads_service.update_ad_account_pixel(
+            session,
+            workspace_id=workspace_id,
+            ad_account_id=account_id,
+            actor_user_id=actor.user_id,
+            pixel_dataset_id=body.pixel_dataset_id,
             request_id=request_id,
         )
 
@@ -367,5 +458,46 @@ def post_apply_budget_change(
             approval_id=body.approval_id,
             new_daily_budget_cents=body.new_daily_budget_cents,
             explicit_human_confirmation=body.explicit_human_confirmation,
+            request_id=request_id,
+        )
+
+
+@router.post("/capi/events", response_model=CapiEventReceiptView)
+def post_send_capi_event(
+    workspace_id: UUID,
+    body: SendCapiEventPayload,
+    actor: Annotated[AuthenticatedActor, Depends(get_current_actor)],
+    session_factory: Annotated[sessionmaker[Session], Depends(get_session_factory)],
+    container: Annotated[AppContainer, Depends(get_container)],
+    request_id: Annotated[UUID, Depends(get_request_id)],
+) -> CapiEventReceiptView:
+    with tenant_transaction(
+        session_factory,
+        user_id=actor.user_id,
+        workspace_id=workspace_id,
+        request_id=request_id,
+    ) as (session, ctx):
+        is_test = bool(body.test_event_code and body.test_event_code.strip())
+        _require_ws_perm(ctx, "ads:write" if is_test else "ads:execute")
+        return container.capi_service.send_event(
+            session,
+            workspace_id=workspace_id,
+            actor_user_id=actor.user_id,
+            ad_account_id=body.ad_account_id,
+            event_name=body.event_name,
+            user_data=build_capi_user_data(
+                email=body.email,
+                phone=body.phone,
+                client_ip_address=body.client_ip_address,
+                client_user_agent=body.client_user_agent,
+                fbp=body.fbp,
+                fbc=body.fbc,
+                external_id=body.external_id,
+            ),
+            custom_data=body.custom_data,
+            event_source_url=body.event_source_url,
+            action_source=body.action_source,
+            event_id=body.event_id,
+            test_event_code=body.test_event_code,
             request_id=request_id,
         )

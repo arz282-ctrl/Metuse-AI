@@ -18,9 +18,25 @@ services:
         value: "true"
       - key: APP_CORS_ORIGINS
         value: https://develop.metuse-ai-web.pages.dev,https://metuse-ai-web.pages.dev
-      - key: REDIS_URL
-        value: ""
+      # Owner connection (boot migrations run `alembic upgrade head` in the entrypoint)
+      - key: DATABASE_URL
+        sync: false
       - key: APP_DATABASE_URL
+        sync: false
+      # Upstash free-tier Redis URL (sessions must survive restarts + share across instances)
+      - key: REDIS_URL
+        sync: false
+      - key: SECRET_STORE_BACKEND
+        value: db
+      - key: META_SECRET_ENCRYPTION_KEY
+        generateValue: true
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: APP_JWT_SECRET
         generateValue: true

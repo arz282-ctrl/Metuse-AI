@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     Text,
     UniqueConstraint,
@@ -53,7 +54,8 @@ class UserIdentity(Base):
     __tablename__ = "user_identities"
     __table_args__ = (
         CheckConstraint(
-            "provider IN ('email', 'meta', 'supabase')", name="ck_user_identities_provider"
+            "provider IN ('email', 'meta', 'supabase', 'google')",
+            name="ck_user_identities_provider",
         ),
         UniqueConstraint(
             "provider", "provider_subject", name="uq_user_identities_provider_subject"
@@ -1790,6 +1792,7 @@ class AdAccount(Base):
     amount_spent_cents: Mapped[int] = mapped_column(
         BigInteger, nullable=False, server_default=text("0")
     )
+    pixel_dataset_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
@@ -2059,6 +2062,31 @@ class AdCampaignDraft(Base):
     remote_campaign_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class SecretVault(Base):
+    __tablename__ = "secret_vault"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_secret_vault_ws_id"),
+        Index("ix_secret_vault_ws", "workspace_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    workspace_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    secret_ref: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    namespace: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'meta'"))
+    nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

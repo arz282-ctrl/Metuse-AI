@@ -8,6 +8,9 @@ import type {
   ClientStatus,
   MembershipSummary,
   SkillCatalogItem,
+  SocialAuthTokenResponse,
+  SocialLoginStartResponse,
+  SocialProvider,
   UsageSummaryRecord,
   WorkerJobRecord,
   WorkerTaskType,
@@ -130,6 +133,21 @@ export const apiClient = {
   },
 
   me: () => request<AuthUser>("/api/v1/auth/me"),
+
+  socialStart: (provider: SocialProvider) =>
+    request<SocialLoginStartResponse>(`/api/v1/auth/${provider}/start`),
+
+  socialCallback: async (
+    provider: SocialProvider,
+    input: { code: string; state: string }
+  ) => {
+    const res = await request<SocialAuthTokenResponse>(
+      `/api/v1/auth/${provider}/callback`,
+      { method: "POST", body: JSON.stringify(input) }
+    );
+    setStoredAccessToken(res.access_token);
+    return res;
+  },
 
   listWorkspaces: () => request<MembershipSummary[]>("/api/v1/workspaces"),
 

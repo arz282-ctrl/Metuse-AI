@@ -17,6 +17,13 @@ PERSONAL_IG_CONVERSION_STEPS: tuple[str, ...] = (
 
 PERMISSION_MATRIX: tuple[PermissionMatrixEntry, ...] = (
     PermissionMatrixEntry(
+        capability="page_list",
+        permission="pages_show_list",
+        description="List managed Pages so linked Instagram Pro accounts can be discovered.",
+        required_for_creator_organic=True,
+        required_for_agency_ads=True,
+    ),
+    PermissionMatrixEntry(
         capability="instagram_read",
         permission="instagram_basic",
         description="Read connected Instagram Professional profile and media metadata.",
@@ -65,6 +72,7 @@ PERMISSION_MATRIX: tuple[PermissionMatrixEntry, ...] = (
 )
 
 CAPABILITY_REQUIRED_SCOPES: dict[str, tuple[str, ...]] = {
+    "page_list": ("pages_show_list",),
     "instagram_publish": ("instagram_basic", "instagram_content_publish"),
     "instagram_insights": ("instagram_basic", "instagram_manage_insights"),
     "instagram_comments": ("instagram_basic", "instagram_manage_comments"),
@@ -83,6 +91,7 @@ def default_scopes_for_connection(
 ) -> list[str]:
     """Compute minimal least-privilege Meta scopes for onboarding (Section 2.3)."""
     scopes = [
+        "pages_show_list",
         "instagram_basic",
         "instagram_content_publish",
         "instagram_manage_insights",

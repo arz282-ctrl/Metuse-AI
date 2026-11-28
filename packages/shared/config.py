@@ -52,7 +52,8 @@ class BaseAppSettings(BaseSettings):
     s3_region: str = "us-east-1"
     s3_presign_ttl_seconds: int = 900
     temporal_address: str = "localhost:7233"
-    secret_store_backend: str = "env_dev"  # noqa: S105
+    # "memory" (dev/test only) or "db" (required outside dev/test)
+    secret_store_backend: str = "memory"  # noqa: S105
     app_jwt_secret: SecretStr = SecretStr("")
     jwt_expires_seconds: int = 3600
     session_cookie_secure: bool = True
@@ -64,6 +65,13 @@ class BaseAppSettings(BaseSettings):
     meta_redirect_uri: str = "http://localhost:3000/auth/meta/callback"
     meta_allowed_redirect_uris: str = ""
     meta_webhook_verify_token: SecretStr = SecretStr("")
+
+    # Google identity OAuth (sign-in only; never coupled to Meta business assets)
+    google_auth_mode: str = "mock_dev"
+    google_client_id: str = ""
+    google_client_secret: SecretStr = SecretStr("")
+    google_redirect_uri: str = "http://localhost:3000/auth/google/callback"
+    google_allowed_redirect_uris: str = ""
 
     # Supabase managed infrastructure (optional; server-only secrets never exposed to browser)
     next_public_supabase_url: str = ""
@@ -158,6 +166,17 @@ class BaseAppSettings(BaseSettings):
                 allowed.add(cleaned)
         return frozenset(allowed)
 
+    def get_google_allowed_redirect_uris(self) -> frozenset[str]:
+        """Return exact redirect URI allowlist for Google identity OAuth."""
+        allowed: set[str] = set()
+        if self.google_redirect_uri.strip():
+            allowed.add(self.google_redirect_uri.strip())
+        for item in self.google_allowed_redirect_uris.split(","):
+            cleaned = item.strip()
+            if cleaned:
+                allowed.add(cleaned)
+        return frozenset(allowed)
+
     def get_sqlalchemy_database_url(self, *, use_app_role: bool = False) -> str:
         """Return psycopg-normalized SQLAlchemy URL for runtime or owner connections."""
         if use_app_role:
@@ -194,6 +213,11 @@ class BaseAppSettings(BaseSettings):
             "session_cookie_secure": True if not self.is_dev_env() else self.session_cookie_secure,
             "meta_app_id": self.meta_app_id,
             "meta_app_secret_configured": bool(self.meta_app_secret.get_secret_value()),
+            "google_auth_mode": self.google_auth_mode,
+            "google_client_configured": bool(
+                self.google_client_id.strip()
+                and self.google_client_secret.get_secret_value().strip()
+            ),
             "supabase_url_configured": bool(
                 (self.supabase_url or self.next_public_supabase_url).strip()
             ),

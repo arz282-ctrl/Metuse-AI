@@ -14,7 +14,19 @@ export interface AdAccountRecord {
   account_status: string;
   spend_cap_cents: number | null;
   amount_spent_cents: number;
+  pixel_dataset_id: string | null;
   last_synced_at: string | null;
+}
+
+export interface CapiEventReceipt {
+  pixel_dataset_id: string;
+  event_name: string;
+  event_id: string;
+  event_time: number;
+  action_source: string;
+  test_mode: boolean;
+  events_received: number;
+  fbtrace_id: string | null;
 }
 
 export interface AdSnapshotRecord {
@@ -154,4 +166,42 @@ export const adsApi = {
       `/api/v1/workspaces/${workspaceId}/ads/drafts/${draftId}/execute`,
       { method: "POST", headers: { "Idempotency-Key": idempotencyKey } }
     ),
+
+  createPromptDraft: (
+    workspaceId: string,
+    payload: {
+      ad_account_id: string;
+      page_asset_id?: string | null;
+      prompt: string;
+      creative_refs?: string[];
+    }
+  ) =>
+    adsRequest<AdDraftRecord>(`/api/v1/workspaces/${workspaceId}/ads/prompt-drafts`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updatePixel: (workspaceId: string, accountId: string, pixelDatasetId: string | null) =>
+    adsRequest<AdAccountRecord>(
+      `/api/v1/workspaces/${workspaceId}/ads/accounts/${accountId}`,
+      { method: "PATCH", body: JSON.stringify({ pixel_dataset_id: pixelDatasetId }) }
+    ),
+
+  sendCapiEvent: (
+    workspaceId: string,
+    payload: {
+      ad_account_id: string;
+      event_name: string;
+      email?: string;
+      fbp?: string;
+      fbc?: string;
+      external_id?: string;
+      event_source_url?: string;
+      test_event_code?: string;
+    }
+  ) =>
+    adsRequest<CapiEventReceipt>(`/api/v1/workspaces/${workspaceId}/ads/capi/events`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

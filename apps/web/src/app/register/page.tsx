@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 import { apiClient, ApiClientError } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -115,6 +116,14 @@ export default function RegisterPage() {
                 "Create account"
               )}
             </Button>
+            <div className="flex w-full items-center gap-3 text-[11px] text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <div className="w-full">
+              <SocialLoginButtons mode="signup" />
+            </div>
             <p className="text-center text-xs text-muted-foreground">
               Already have an account?{" "}
               <Link href="/login" className="font-medium text-indigo-400 hover:underline">

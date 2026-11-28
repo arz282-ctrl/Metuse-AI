@@ -1,6 +1,8 @@
 """AI orchestration contracts, prompt compiler, budget enforcement, and job execution service."""
 
 from packages.ai_core.contracts import (
+    AdCampaignPlanArtifact,
+    AdCreativeBrief,
     AeoAnswerPassage,
     MediaPlanArtifact,
     ResearchFinding,
@@ -32,6 +34,8 @@ from packages.ai_core.service import (
 )
 
 __all__ = [
+    "AdCampaignPlanArtifact",
+    "AdCreativeBrief",
     "AeoAnswerPassage",
     "CompiledWorkerPrompt",
     "MediaPlanArtifact",

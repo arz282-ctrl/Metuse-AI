@@ -274,6 +274,9 @@ class AuditAction(StrEnum):
     AUTH_LOGOUT = "auth.logout"
     AUTH_META_LOGIN_START = "auth.meta_login_start"
     AUTH_META_LOGIN_CALLBACK = "auth.meta_login_callback"
+    AUTH_GOOGLE_LOGIN_START = "auth.google_login_start"
+    AUTH_GOOGLE_LOGIN_CALLBACK = "auth.google_login_callback"
+    AUTH_ACCOUNT_DELETED = "auth.account_deleted"
     WORKSPACE_CREATED = "workspace.created"
     WORKSPACE_UPDATED = "workspace.updated"
     WORKSPACE_MEMBER_ADDED = "workspace.member_added"
@@ -312,6 +315,7 @@ class AuditAction(StrEnum):
     META_CONNECTION_REVOKED = "meta.connection_revoked"
     META_PERSONAL_ACCOUNT_BLOCKED = "meta.personal_account_blocked"
     META_WEBHOOK_RECEIVED = "meta.webhook_received"
+    META_ASSETS_UPDATED = "meta.assets_updated"
     CONTENT_ITEM_CREATED = "content_item.created"
     CONTENT_ITEM_SCHEDULED = "content_item.scheduled"
     PUBLISHING_JOB_CREATED = "publishing_job.created"
@@ -328,6 +332,8 @@ class AuditAction(StrEnum):
     AD_BUDGET_APPROVAL_REQUESTED = "ads.budget_approval_requested"
     AD_BUDGET_CHANGED = "ads.budget_changed"
     AD_MUTATION_FAILED = "ads.mutation_failed"
+    AD_PIXEL_UPDATED = "ads.pixel_updated"
+    AD_CAPI_EVENT_SENT = "ads.capi_event_sent"
 
 
 class ErrorCode(StrEnum):

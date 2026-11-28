@@ -7,9 +7,9 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from packages.shared.enums import WorkerJobStatus, WorkerTaskType
+from packages.shared.enums import AdObjective, WorkerJobStatus, WorkerTaskType
 from packages.shared.scrubbing import scrub_secrets
 
 
@@ -161,6 +161,49 @@ class MediaPlanArtifact(BaseModel):
     continuity_constraints: list[str] = Field(default_factory=list)
     cta_placement: str = Field(min_length=1)
     qa_checklist: list[str] = Field(min_length=1)
+
+
+class AdCreativeBrief(BaseModel):
+    """AI-generated ad copy brief stored on the draft (human reviews before approval)."""
+
+    headline: str = Field(min_length=1, max_length=120)
+    primary_text: str = Field(min_length=1, max_length=600)
+    description: str = Field(default="", max_length=300)
+    call_to_action: str = Field(default="LEARN_MORE", max_length=40)
+
+
+class AdCampaignPlanArtifact(BaseModel):
+    """Validated output schema: metuse.ad_campaign_plan.v1 (draft only; never executes)."""
+
+    name: str = Field(min_length=3, max_length=160)
+    objective: AdObjective = AdObjective.OUTCOME_TRAFFIC
+    daily_budget_cents: int = Field(ge=100)
+    countries: list[str] = Field(min_length=1, max_length=10)
+    age_min: int = Field(ge=18, le=65, default=18)
+    age_max: int = Field(ge=18, le=65, default=65)
+    optimization_goal: str = Field(default="", max_length=60)
+    creative_brief: AdCreativeBrief
+
+    @field_validator("countries", mode="before")
+    @classmethod
+    def _normalize_countries(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            return value
+        return [str(c).strip().upper() for c in value if str(c).strip()]
+
+    @field_validator("countries")
+    @classmethod
+    def _validate_country_codes(cls, value: list[str]) -> list[str]:
+        for code in value:
+            if len(code) != 2 or not code.isalpha():
+                raise ValueError(f"Invalid country code '{code}'; expected ISO 3166-1 alpha-2")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_age_window(self) -> AdCampaignPlanArtifact:
+        if self.age_max < self.age_min:
+            raise ValueError("age_max must be greater than or equal to age_min")
+        return self
 
 
 # --- API Output DTOs ---

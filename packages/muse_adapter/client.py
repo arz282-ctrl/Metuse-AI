@@ -374,6 +374,26 @@ def _build_mock_schema_payload(
             ],
         }
 
+    if schema_id == "metuse.ad_campaign_plan.v1":
+        return {
+            "name": f"{brand_name} — {topic} Launch",
+            "objective": "OUTCOME_TRAFFIC",
+            "daily_budget_cents": 5000,
+            "countries": ["US"],
+            "age_min": 21,
+            "age_max": 45,
+            "optimization_goal": "LINK_CLICKS",
+            "creative_brief": {
+                "headline": f"{brand_name}: {topic} that converts",
+                "primary_text": (
+                    f"Discover how {brand_name} helps {audience} win with {topic}. "
+                    "Tap to learn more."
+                ),
+                "description": f"Paid social launch for {brand_name}.",
+                "call_to_action": "LEARN_MORE",
+            },
+        }
+
     # metuse.media_plan.v1
     return {
         "topic": topic,

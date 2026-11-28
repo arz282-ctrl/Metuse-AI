@@ -4,6 +4,8 @@ set -eu
 PORT="${PORT:-8000}"
 
 if [ -f /app/apps/api/main.py ]; then
+  echo "Applying database migrations (DATABASE_URL owner role)..."
+  uv run --no-sync alembic upgrade head
   exec uv run --no-sync uvicorn apps.api.main:app --host 0.0.0.0 --port "$PORT"
 fi
 

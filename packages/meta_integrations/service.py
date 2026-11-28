@@ -435,18 +435,23 @@ class MetaConnectionService:
         return [_connection_view(r) for r in rows]
 
     def list_connection_assets(
-        self, session: Session, *, workspace_id: UUID, connection_id: UUID
+        self,
+        session: Session,
+        *,
+        workspace_id: UUID,
+        connection_id: UUID,
+        include_deselected: bool = False,
     ) -> list[MetaConnectedAssetView]:
         self._get_connection_row(session, workspace_id=workspace_id, connection_id=connection_id)
+        stmt = select(MetaConnectedAsset).where(
+            MetaConnectedAsset.workspace_id == workspace_id,
+            MetaConnectedAsset.connection_id == connection_id,
+        )
+        if not include_deselected:
+            stmt = stmt.where(MetaConnectedAsset.is_selected.is_(True))
         rows = (
             session.execute(
-                select(MetaConnectedAsset)
-                .where(
-                    MetaConnectedAsset.workspace_id == workspace_id,
-                    MetaConnectedAsset.connection_id == connection_id,
-                    MetaConnectedAsset.is_selected.is_(True),
-                )
-                .order_by(
+                stmt.order_by(
                     MetaConnectedAsset.asset_type.asc(), MetaConnectedAsset.display_name.asc()
                 )
             )
@@ -454,6 +459,108 @@ class MetaConnectionService:
             .all()
         )
         return [_asset_view(r) for r in rows]
+
+    def update_asset_selection(
+        self,
+        session: Session,
+        *,
+        workspace_id: UUID,
+        connection_id: UUID,
+        actor_user_id: UUID,
+        selections: dict[UUID, bool],
+        request_id: UUID | None = None,
+    ) -> MetaConnectionView:
+        """Update which persisted assets are selected; recompute ids + capabilities + audit."""
+        if not selections:
+            raise MetuseError(
+                "At least one asset selection is required",
+                code=ErrorCode.BAD_REQUEST,
+                status_code=400,
+            )
+        conn = self._get_connection_row(
+            session, workspace_id=workspace_id, connection_id=connection_id
+        )
+        if conn.status == MetaConnectionStatus.DISCONNECTED.value:
+            raise MetuseError(
+                "Cannot update assets on a disconnected Meta connection; reconnect first.",
+                code=ErrorCode.META_RECONNECT_REQUIRED,
+                status_code=403,
+            )
+
+        rows = (
+            session.execute(
+                select(MetaConnectedAsset).where(
+                    MetaConnectedAsset.workspace_id == workspace_id,
+                    MetaConnectedAsset.connection_id == connection_id,
+                )
+            )
+            .scalars()
+            .all()
+        )
+        by_id = {row.id: row for row in rows}
+        changed: list[str] = []
+        for asset_id, selected in selections.items():
+            row = by_id.get(asset_id)
+            if row is None:
+                raise NotFoundError(
+                    "Meta connected asset not found",
+                    details={"asset_id": str(asset_id)},
+                )
+            if row.is_selected != selected:
+                row.is_selected = selected
+                changed.append(f"{row.asset_type}:{row.external_asset_id}={selected!s}")
+        session.flush()
+
+        active_rows = [r for r in rows if r.is_selected and r.is_eligible]
+        before = {
+            "instagram_count": len(conn.instagram_account_ids),
+            "page_count": len(conn.page_ids),
+            "ad_account_count": len(conn.ad_account_ids),
+        }
+        conn.instagram_account_ids = [
+            r.external_asset_id
+            for r in active_rows
+            if r.asset_type == MetaAssetType.INSTAGRAM_PROFESSIONAL.value
+        ]
+        conn.page_ids = [
+            r.external_asset_id
+            for r in active_rows
+            if r.asset_type == MetaAssetType.FACEBOOK_PAGE.value
+        ]
+        conn.ad_account_ids = [
+            r.external_asset_id
+            for r in active_rows
+            if r.asset_type == MetaAssetType.AD_ACCOUNT.value
+        ]
+        capabilities, _ = compute_capabilities(
+            granted_scopes=list(conn.granted_scopes),
+            has_instagram_professional=len(conn.instagram_account_ids) > 0,
+            has_ad_account=len(conn.ad_account_ids) > 0,
+        )
+        conn.capabilities = capabilities
+        session.add(
+            AuditLog(
+                id=uuid4(),
+                workspace_id=workspace_id,
+                client_id=conn.client_id,
+                actor_user_id=actor_user_id,
+                action=AuditAction.META_ASSETS_UPDATED.value,
+                target_type="meta_connection",
+                target_id=str(conn.id),
+                request_id=request_id,
+                metadata_json={
+                    "before": before,
+                    "after": {
+                        "instagram_count": len(conn.instagram_account_ids),
+                        "page_count": len(conn.page_ids),
+                        "ad_account_count": len(conn.ad_account_ids),
+                    },
+                    "changed": changed,
+                },
+            )
+        )
+        session.flush()
+        return _connection_view(conn, has_secret=True)
 
     def get_connection_capabilities(
         self, session: Session, *, workspace_id: UUID, connection_id: UUID

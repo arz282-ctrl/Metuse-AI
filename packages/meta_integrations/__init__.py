@@ -12,10 +12,12 @@ from packages.meta_integrations.ads import (
     AdsSyncSummaryView,
     AmbiguousAdsTimeoutError,
     BudgetMutationResultView,
+    LiveMetaAdsClient,
     MetaAdsClient,
     MockMetaAdsClient,
     compute_budget_change_hash,
     compute_draft_content_hash,
+    create_meta_ads_client,
 )
 from packages.meta_integrations.capabilities import (
     CAPABILITY_REQUIRED_SCOPES,
@@ -24,6 +26,18 @@ from packages.meta_integrations.capabilities import (
     compute_capabilities,
     default_scopes_for_connection,
     require_meta_capability,
+)
+from packages.meta_integrations.capi import (
+    CapiClient,
+    CapiEventReceiptView,
+    CapiSendResult,
+    CapiService,
+    LiveCapiClient,
+    MockCapiClient,
+    build_capi_user_data,
+    create_capi_client,
+    hash_capi_email,
+    hash_capi_phone,
 )
 from packages.meta_integrations.client import (
     LiveMetaGraphClient,
@@ -58,7 +72,13 @@ from packages.meta_integrations.publishing import (
     RemoteInsightsPayload,
     RemotePublishResponse,
 )
-from packages.meta_integrations.secret_store import EncryptedSecretStore, SecretStore
+from packages.meta_integrations.secret_store import (
+    DbSecretStore,
+    EncryptedSecretStore,
+    SecretStore,
+    parse_vault_secret_ref,
+    resolve_vault_key_material,
+)
 from packages.meta_integrations.service import MetaConnectionService
 
 __all__ = [
@@ -79,11 +99,18 @@ __all__ = [
     "AmbiguousPublishTimeoutError",
     "AnalyticsSummaryView",
     "BudgetMutationResultView",
+    "CapiClient",
+    "CapiEventReceiptView",
+    "CapiSendResult",
+    "CapiService",
     "ContentCalendarView",
     "ContentItemView",
+    "DbSecretStore",
     "DiscoveredMetaAsset",
     "EncryptedSecretStore",
     "InsightsSnapshotView",
+    "LiveCapiClient",
+    "LiveMetaAdsClient",
     "LiveMetaGraphClient",
     "MetaAdsClient",
     "MetaCapabilitiesView",
@@ -94,6 +121,7 @@ __all__ = [
     "MetaPublisherClient",
     "MetaTokenExchangeResult",
     "MetaWebhookReceipt",
+    "MockCapiClient",
     "MockMetaAdsClient",
     "MockMetaGraphClient",
     "MockMetaPublisherClient",
@@ -107,10 +135,17 @@ __all__ = [
     "RemotePublishResponse",
     "SecretStore",
     "UnifiedLoginStartResponse",
+    "build_capi_user_data",
     "compute_budget_change_hash",
     "compute_capabilities",
     "compute_draft_content_hash",
+    "create_capi_client",
+    "create_meta_ads_client",
     "create_meta_graph_client",
     "default_scopes_for_connection",
+    "hash_capi_email",
+    "hash_capi_phone",
+    "parse_vault_secret_ref",
     "require_meta_capability",
+    "resolve_vault_key_material",
 ]

@@ -43,6 +43,8 @@ export interface MetaConnectedAssetRecord {
   display_name: string;
   username: string | null;
   instagram_account_type: string | null;
+  is_selected: boolean;
+  is_eligible: boolean;
   status: string;
 }
 
@@ -104,9 +106,19 @@ export const metaApi = {
   listConnections: (workspaceId: string) =>
     metaRequest<MetaConnectionRecord[]>(`/api/v1/workspaces/${workspaceId}/meta/connections`),
 
-  listAssets: (workspaceId: string, connectionId: string) =>
+  listAssets: (workspaceId: string, connectionId: string, includeDeselected = false) =>
     metaRequest<MetaConnectedAssetRecord[]>(
-      `/api/v1/workspaces/${workspaceId}/meta/connections/${connectionId}/assets`
+      `/api/v1/workspaces/${workspaceId}/meta/connections/${connectionId}/assets?include_deselected=${includeDeselected}`
+    ),
+
+  updateAssetSelection: (
+    workspaceId: string,
+    connectionId: string,
+    selections: { asset_id: string; is_selected: boolean }[]
+  ) =>
+    metaRequest<MetaConnectionRecord>(
+      `/api/v1/workspaces/${workspaceId}/meta/connections/${connectionId}/assets`,
+      { method: "PATCH", body: JSON.stringify({ selections }) }
     ),
 
   startUnifiedLogin: (
@@ -114,6 +126,7 @@ export const metaApi = {
     payload: {
       connection_type: MetaConnectionType;
       client_id?: string | null;
+      redirect_uri?: string | null;
       include_ads?: boolean;
     }
   ) =>

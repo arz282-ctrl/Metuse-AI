@@ -21,7 +21,8 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -32,30 +33,37 @@ from database.models import (
     AdSetSnapshot,
     AdSnapshot,
     Approval,
+    Asset,
     AuditLog,
     MetaConnectedAsset,
     MetaConnection,
 )
+from packages.ai_core.contracts import AdCampaignPlanArtifact
 from packages.meta_integrations.capabilities import require_meta_capability
 from packages.meta_integrations.secret_store import SecretStore
 from packages.meta_integrations.service import MetaConnectionService
+from packages.muse_adapter import MuseAdapter, MuseStructuredRequest
 from packages.shared.config import BaseAppSettings
 from packages.shared.enums import (
     AdDraftStatus,
     AdObjective,
     ApprovalStatus,
     ApprovalType,
+    AssetKind,
     AuditAction,
     ErrorCode,
     MetaAssetType,
     MetaConnectionStatus,
+    MuseCapability,
 )
 from packages.shared.errors import (
     ConflictError,
+    ExternalServiceError,
     MetuseError,
     NotFoundError,
     ValidationDomainError,
 )
+from packages.shared.scrubbing import scrub_text
 
 
 class AmbiguousAdsTimeoutError(RuntimeError):
@@ -342,6 +350,426 @@ class MockMetaAdsClient:
         return campaigns.get(external_campaign_id)
 
 
+def _normalize_act_id(external_account_id: str) -> str:
+    cleaned = external_account_id.strip()
+    return cleaned if cleaned.startswith("act_") else f"act_{cleaned}"
+
+
+def _client_ref_marker(client_ref: str) -> str:
+    """Compact idempotency marker embedded in live campaign names for timeout recovery."""
+    parts = client_ref.strip().split(":")
+    short = (
+        parts[2][:8]
+        if len(parts) >= 3 and parts[2]
+        else hashlib.sha256(client_ref.encode("utf-8")).hexdigest()[:8]
+    )
+    return f"[metuse:{short}]"
+
+
+def _to_cents(value: Any) -> int:
+    try:
+        return max(0, int(float(str(value))))
+    except (TypeError, ValueError):
+        return 0
+
+
+_DEFAULT_OPTIMIZATION_GOAL: dict[str, str] = {
+    "OUTCOME_AWARENESS": "REACH",
+    "OUTCOME_TRAFFIC": "LINK_CLICKS",
+    "OUTCOME_ENGAGEMENT": "POST_ENGAGEMENT",
+    "OUTCOME_LEADS": "LEAD_GENERATION",
+    "OUTCOME_SALES": "OFFSITE_CONVERSIONS",
+}
+
+
+class LiveMetaAdsClient:
+    """Live Meta Marketing API client (reads + PAUSED-first approved mutations only).
+
+    Every created campaign and ad set starts PAUSED so a successful API write can
+    never spend before a human activates it in Ads Manager. Mutations embed a compact
+    idempotency marker in the campaign name so ambiguous timeouts can re-read remote
+    state before retrying (Acceptance #16 semantics).
+    """
+
+    def __init__(
+        self,
+        *,
+        graph_base_url: str = "https://graph.facebook.com",
+        api_version: str = "v22.0",
+        timeout_seconds: float = 25.0,
+        http_client: httpx.Client | None = None,
+    ) -> None:
+        self._graph_base_url = graph_base_url.rstrip("/")
+        self._api_version = api_version.strip()
+        self._timeout = timeout_seconds
+        self._http_client = http_client
+
+    def _client(self) -> tuple[httpx.Client, bool]:
+        if self._http_client is not None:
+            return self._http_client, False
+        return httpx.Client(timeout=self._timeout), True
+
+    def _get(self, path: str, *, access_token: str, params: dict[str, Any]) -> dict[str, Any]:
+        client, close_after = self._client()
+        try:
+            resp = client.get(
+                f"{self._graph_base_url}/{self._api_version}/{path.lstrip('/')}",
+                params={**params, "access_token": access_token},
+            )
+        except httpx.TimeoutException as exc:
+            raise ExternalServiceError("Meta Marketing API read timed out") from exc
+        except httpx.HTTPError as exc:
+            raise ExternalServiceError("Meta Marketing API network request failed") from exc
+        finally:
+            if close_after:
+                client.close()
+        if resp.status_code >= 400:
+            raise ExternalServiceError(
+                scrub_text(f"Meta Marketing API read failed (HTTP {resp.status_code})")
+            )
+        data: dict[str, Any] = resp.json()
+        if isinstance(data.get("error"), dict):
+            raise ExternalServiceError("Meta Marketing API returned an error payload")
+        return data
+
+    def _post(
+        self,
+        path: str,
+        *,
+        access_token: str,
+        payload: dict[str, Any],
+        ambiguous_on_timeout: bool,
+    ) -> dict[str, Any]:
+        client, close_after = self._client()
+        try:
+            resp = client.post(
+                f"{self._graph_base_url}/{self._api_version}/{path.lstrip('/')}",
+                params={"access_token": access_token},
+                data={
+                    k: (json.dumps(v) if isinstance(v, dict | list) else v)
+                    for k, v in payload.items()
+                },
+            )
+        except httpx.TimeoutException as exc:
+            if ambiguous_on_timeout:
+                raise AmbiguousAdsTimeoutError(
+                    "Meta Marketing API mutation timed out with ambiguous remote state"
+                ) from exc
+            raise ExternalServiceError("Meta Marketing API request timed out") from exc
+        except httpx.HTTPError as exc:
+            raise ExternalServiceError("Meta Marketing API network request failed") from exc
+        finally:
+            if close_after:
+                client.close()
+        if resp.status_code >= 400:
+            raise ExternalServiceError(
+                scrub_text(f"Meta Marketing API mutation failed (HTTP {resp.status_code})")
+            )
+        data: dict[str, Any] = resp.json()
+        if isinstance(data.get("error"), dict):
+            raise ExternalServiceError("Meta Marketing API returned an error payload")
+        return data
+
+    def _campaign_insights(self, *, access_token: str, campaign_id: str) -> dict[str, int]:
+        try:
+            data = self._get(
+                f"{campaign_id}/insights",
+                access_token=access_token,
+                params={
+                    "fields": "spend,impressions,clicks,conversions",
+                    "date_preset": "lifetime",
+                },
+            )
+        except ExternalServiceError:
+            return {"spend": 0, "impressions": 0, "clicks": 0, "conversions": 0}
+        rows = data.get("data", [])
+        row = rows[0] if rows else {}
+        return {
+            "spend": _to_cents(row.get("spend")),
+            "impressions": _to_cents(row.get("impressions")),
+            "clicks": _to_cents(row.get("clicks")),
+            "conversions": _to_cents(row.get("conversions")),
+        }
+
+    def fetch_ad_account(
+        self, *, access_token: str, external_account_id: str
+    ) -> RemoteAdAccountData:
+        data = self._get(
+            _normalize_act_id(external_account_id),
+            access_token=access_token,
+            params={
+                "fields": "id,name,currency,timezone_name,account_status,spend_cap,amount_spent"
+            },
+        )
+        spend_cap_raw = data.get("spend_cap")
+        return RemoteAdAccountData(
+            external_account_id=str(data.get("id") or external_account_id),
+            name=str(data.get("name") or external_account_id),
+            currency=str(data.get("currency") or "USD"),
+            timezone_name=str(data.get("timezone_name") or "UTC"),
+            account_status=str(data.get("account_status") or "active"),
+            spend_cap_cents=_to_cents(spend_cap_raw)
+            if spend_cap_raw not in (None, "", "0")
+            else None,
+            amount_spent_cents=_to_cents(data.get("amount_spent")),
+        )
+
+    def fetch_campaign_hierarchy(
+        self, *, access_token: str, external_account_id: str
+    ) -> list[RemoteCampaignData]:
+        data = self._get(
+            f"{_normalize_act_id(external_account_id)}/campaigns",
+            access_token=access_token,
+            params={
+                "fields": (
+                    "id,name,objective,status,daily_budget,lifetime_budget,"
+                    "adsets{id,name,status,optimization_goal,daily_budget,"
+                    "ads{id,name,status}}"
+                ),
+                "limit": 50,
+            },
+        )
+        campaigns: list[RemoteCampaignData] = []
+        for row in data.get("data", [])[:25]:
+            campaign_id = str(row.get("id") or "")
+            if not campaign_id:
+                continue
+            insights = self._campaign_insights(access_token=access_token, campaign_id=campaign_id)
+            ad_sets: list[RemoteAdSetData] = []
+            for set_row in (row.get("adsets") or {}).get("data", []):
+                ads = tuple(
+                    RemoteAdData(
+                        external_ad_id=str(ad.get("id") or ""),
+                        name=str(ad.get("name") or ""),
+                        status=str(ad.get("status") or "UNKNOWN"),
+                        creative_summary={},
+                        spend_cents=0,
+                        impressions=0,
+                        clicks=0,
+                    )
+                    for ad in (set_row.get("ads") or {}).get("data", [])
+                    if ad.get("id")
+                )
+                ad_sets.append(
+                    RemoteAdSetData(
+                        external_ad_set_id=str(set_row.get("id") or ""),
+                        name=str(set_row.get("name") or ""),
+                        status=str(set_row.get("status") or "UNKNOWN"),
+                        optimization_goal=str(set_row.get("optimization_goal") or ""),
+                        daily_budget_cents=(
+                            _to_cents(set_row.get("daily_budget"))
+                            if set_row.get("daily_budget") is not None
+                            else None
+                        ),
+                        targeting={},
+                        spend_cents=0,
+                        impressions=0,
+                        clicks=0,
+                        ads=ads,
+                    )
+                )
+            daily_raw = row.get("daily_budget")
+            lifetime_raw = row.get("lifetime_budget")
+            campaigns.append(
+                RemoteCampaignData(
+                    external_campaign_id=campaign_id,
+                    name=str(row.get("name") or campaign_id),
+                    objective=str(row.get("objective") or "OUTCOME_AWARENESS"),
+                    status=str(row.get("status") or "PAUSED"),
+                    daily_budget_cents=_to_cents(daily_raw) if daily_raw is not None else None,
+                    lifetime_budget_cents=(
+                        _to_cents(lifetime_raw) if lifetime_raw is not None else None
+                    ),
+                    spend_cents=insights["spend"],
+                    impressions=insights["impressions"],
+                    clicks=insights["clicks"],
+                    conversions=insights["conversions"],
+                    ad_sets=tuple(ad_sets),
+                )
+            )
+        return campaigns
+
+    def create_campaign(
+        self,
+        *,
+        access_token: str,
+        external_account_id: str,
+        name: str,
+        objective: str,
+        daily_budget_cents: int,
+        targeting: dict[str, Any],
+        client_ref: str,
+    ) -> RemoteCampaignData:
+        act = _normalize_act_id(external_account_id)
+        marker = _client_ref_marker(client_ref)
+        created = self._post(
+            f"{act}/campaigns",
+            access_token=access_token,
+            payload={
+                "name": f"{name} {marker}",
+                "objective": objective,
+                "status": "PAUSED",
+                "special_ad_categories": [],
+            },
+            ambiguous_on_timeout=True,
+        )
+        campaign_id = str(created.get("id") or "").strip()
+        if not campaign_id:
+            raise ExternalServiceError("Meta campaign creation did not return an id")
+
+        countries = targeting.get("countries")
+        geo_countries = (
+            [str(c) for c in countries if str(c).strip()] if isinstance(countries, list) else []
+        )
+        age_min = targeting.get("age_min", 18)
+        age_max = targeting.get("age_max", 65)
+        optimization_goal = str(
+            targeting.get("optimization_goal")
+            or _DEFAULT_OPTIMIZATION_GOAL.get(objective, "LINK_CLICKS")
+        )
+        start_time = datetime.now(UTC).isoformat()
+        self._post(
+            f"{act}/adsets",
+            access_token=access_token,
+            payload={
+                "name": f"{name} — Ad Set 1",
+                "campaign_id": campaign_id,
+                "daily_budget": daily_budget_cents,
+                "billing_event": "IMPRESSIONS",
+                "optimization_goal": optimization_goal,
+                "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+                "targeting": {
+                    "geo_locations": {"countries": geo_countries or ["US"]},
+                    "age_min": age_min if isinstance(age_min, int) else 18,
+                    "age_max": age_max if isinstance(age_max, int) else 65,
+                },
+                "start_time": start_time,
+                "status": "PAUSED",
+            },
+            ambiguous_on_timeout=True,
+        )
+        fetched = self.get_remote_campaign(
+            access_token=access_token,
+            external_account_id=external_account_id,
+            external_campaign_id=campaign_id,
+        )
+        if fetched is None:
+            raise ExternalServiceError("Meta campaign created but could not be re-read")
+        return fetched
+
+    def find_campaign_by_client_ref(
+        self, *, access_token: str, external_account_id: str, client_ref: str
+    ) -> RemoteCampaignData | None:
+        marker = _client_ref_marker(client_ref)
+        data = self._get(
+            f"{_normalize_act_id(external_account_id)}/campaigns",
+            access_token=access_token,
+            params={"fields": "id,name", "limit": 100},
+        )
+        for row in data.get("data", []):
+            if marker in str(row.get("name") or "") and row.get("id"):
+                return self.get_remote_campaign(
+                    access_token=access_token,
+                    external_account_id=external_account_id,
+                    external_campaign_id=str(row["id"]),
+                )
+        return None
+
+    def update_campaign_daily_budget(
+        self,
+        *,
+        access_token: str,
+        external_account_id: str,
+        external_campaign_id: str,
+        new_daily_budget_cents: int,
+    ) -> RemoteCampaignData:
+        campaign = self._get(
+            external_campaign_id,
+            access_token=access_token,
+            params={"fields": "id,daily_budget"},
+        )
+        if campaign.get("daily_budget") is not None:
+            # Campaign Budget Optimization: budget lives on the campaign itself.
+            self._post(
+                external_campaign_id,
+                access_token=access_token,
+                payload={"daily_budget": new_daily_budget_cents},
+                ambiguous_on_timeout=True,
+            )
+        else:
+            ad_sets = self._get(
+                f"{external_campaign_id}/adsets",
+                access_token=access_token,
+                params={"fields": "id", "limit": 50},
+            )
+            rows = [r for r in ad_sets.get("data", []) if r.get("id")]
+            if not rows:
+                raise ValidationDomainError(
+                    "Remote campaign has no ad sets to receive the budget change"
+                )
+            for row in rows:
+                self._post(
+                    str(row["id"]),
+                    access_token=access_token,
+                    payload={"daily_budget": new_daily_budget_cents},
+                    ambiguous_on_timeout=True,
+                )
+        updated = self.get_remote_campaign(
+            access_token=access_token,
+            external_account_id=external_account_id,
+            external_campaign_id=external_campaign_id,
+        )
+        if updated is None:
+            raise ExternalServiceError("Meta campaign budget updated but could not be re-read")
+        return updated
+
+    def get_remote_campaign(
+        self,
+        *,
+        access_token: str,
+        external_account_id: str,
+        external_campaign_id: str,
+    ) -> RemoteCampaignData | None:
+        _ = external_account_id
+        try:
+            data = self._get(
+                external_campaign_id,
+                access_token=access_token,
+                params={"fields": "id,name,objective,status,daily_budget,lifetime_budget"},
+            )
+        except ExternalServiceError:
+            return None
+        campaign_id = str(data.get("id") or "").strip()
+        if not campaign_id:
+            return None
+        insights = self._campaign_insights(access_token=access_token, campaign_id=campaign_id)
+        daily_raw = data.get("daily_budget")
+        lifetime_raw = data.get("lifetime_budget")
+        return RemoteCampaignData(
+            external_campaign_id=campaign_id,
+            name=str(data.get("name") or campaign_id),
+            objective=str(data.get("objective") or "OUTCOME_AWARENESS"),
+            status=str(data.get("status") or "PAUSED"),
+            daily_budget_cents=_to_cents(daily_raw) if daily_raw is not None else None,
+            lifetime_budget_cents=_to_cents(lifetime_raw) if lifetime_raw is not None else None,
+            spend_cents=insights["spend"],
+            impressions=insights["impressions"],
+            clicks=insights["clicks"],
+            conversions=insights["conversions"],
+            ad_sets=(),
+        )
+
+
+def create_meta_ads_client(settings: BaseAppSettings) -> MetaAdsClient:
+    """Instantiate MockMetaAdsClient (default $0) or LiveMetaAdsClient from settings."""
+    if settings.meta_connections_mode.strip().lower() == "live":
+        return LiveMetaAdsClient(
+            graph_base_url=settings.meta_graph_base_url,
+            api_version=settings.meta_graph_api_version,
+        )
+    return MockMetaAdsClient()
+
+
 # ---------------------------------------------------------------------------
 # Response contracts
 # ---------------------------------------------------------------------------
@@ -361,6 +789,7 @@ class AdAccountView(BaseModel):
     account_status: str
     spend_cap_cents: int | None = None
     amount_spent_cents: int
+    pixel_dataset_id: str | None = None
     last_synced_at: datetime | None = None
 
 
@@ -530,6 +959,7 @@ def _account_view(row: AdAccount) -> AdAccountView:
         account_status=row.account_status,
         spend_cap_cents=row.spend_cap_cents,
         amount_spent_cents=row.amount_spent_cents,
+        pixel_dataset_id=row.pixel_dataset_id,
         last_synced_at=row.last_synced_at,
     )
 
@@ -1274,6 +1704,171 @@ class AdsOperationsService:
         )
         session.flush()
         return _draft_view(draft)
+
+    def update_ad_account_pixel(
+        self,
+        session: Session,
+        *,
+        workspace_id: UUID,
+        ad_account_id: UUID,
+        actor_user_id: UUID,
+        pixel_dataset_id: str | None,
+        request_id: UUID | None = None,
+    ) -> AdAccountView:
+        """Bind (or clear) the Conversions API pixel/dataset id for an ad account."""
+        acct = self._get_ad_account_row(
+            session, workspace_id=workspace_id, ad_account_id=ad_account_id
+        )
+        cleaned = (
+            pixel_dataset_id.strip() if pixel_dataset_id and pixel_dataset_id.strip() else None
+        )
+        if cleaned is not None and (not cleaned.isdigit() or len(cleaned) > 32):
+            raise ValidationDomainError("pixel_dataset_id must be a numeric Meta dataset id")
+        before = acct.pixel_dataset_id
+        acct.pixel_dataset_id = cleaned
+        session.add(
+            AuditLog(
+                id=uuid4(),
+                workspace_id=workspace_id,
+                client_id=acct.client_id,
+                actor_user_id=actor_user_id,
+                action=AuditAction.AD_PIXEL_UPDATED.value,
+                target_type="ad_account",
+                target_id=str(acct.id),
+                request_id=request_id,
+                metadata_json={"before": before, "after": cleaned},
+            )
+        )
+        session.flush()
+        return _account_view(acct)
+
+    def create_prompt_draft(
+        self,
+        session: Session,
+        *,
+        workspace_id: UUID,
+        actor_user_id: UUID,
+        ad_account_id: UUID,
+        prompt: str,
+        page_asset_id: UUID | None,
+        creative_refs: list[str] | None,
+        muse_adapter: MuseAdapter,
+        request_id: UUID | None = None,
+    ) -> AdDraftView:
+        """Generate a campaign draft from a single natural-language prompt (draft only).
+
+        The AI plan is schema-validated, budget-clamped to the workspace safety
+        ceiling and account spend cap, then persisted through the standard draft +
+        validate flow. Execution still requires explicit human approval.
+        """
+        acct = self._get_ad_account_row(
+            session, workspace_id=workspace_id, ad_account_id=ad_account_id
+        )
+        cleaned_prompt = prompt.strip()
+        if len(cleaned_prompt) < 8:
+            raise ValidationDomainError("Prompt must be at least 8 characters long")
+
+        page_external_id: str | None = None
+        if page_asset_id is not None:
+            page_asset = session.execute(
+                select(MetaConnectedAsset).where(
+                    MetaConnectedAsset.workspace_id == workspace_id,
+                    MetaConnectedAsset.id == page_asset_id,
+                    MetaConnectedAsset.connection_id == acct.meta_connection_id,
+                    MetaConnectedAsset.asset_type == MetaAssetType.FACEBOOK_PAGE.value,
+                    MetaConnectedAsset.is_selected.is_(True),
+                    MetaConnectedAsset.is_eligible.is_(True),
+                )
+            ).scalar_one_or_none()
+            if page_asset is None:
+                raise ValidationDomainError(
+                    "Selected page is not available on this ad account's Meta connection"
+                )
+            page_external_id = page_asset.external_asset_id
+
+        response = muse_adapter.invoke_structured(
+            MuseStructuredRequest(
+                capability=MuseCapability.REASONING_STRUCTURED_OUTPUT,
+                system_policy=(
+                    "You are a Meta ads strategist. Given one advertiser prompt, produce a "
+                    "single campaign plan as strict JSON for schema metuse.ad_campaign_plan.v1: "
+                    "concise campaign name, one OUTCOME_* objective, daily budget in cents "
+                    "(minimum 100), ISO country codes, age window 18-65, and a short creative "
+                    "brief. Never invent page or account ids."
+                ),
+                user_prompt=cleaned_prompt,
+                output_schema_id="metuse.ad_campaign_plan.v1",
+                metadata={
+                    "topic": cleaned_prompt[:120],
+                    "brand_name": acct.name,
+                    "target_audience": "paid social buyers",
+                    "ad_account_id": str(acct.id),
+                },
+            )
+        )
+        try:
+            plan = AdCampaignPlanArtifact.model_validate(response.content_json)
+        except ValidationError as exc:
+            raise ValidationDomainError(
+                "Campaign plan output failed schema validation",
+                code=ErrorCode.SCHEMA_VALIDATION_FAILED,
+                details={"schema": "metuse.ad_campaign_plan.v1", "errors": exc.errors()},
+            ) from exc
+
+        budget_cents = min(plan.daily_budget_cents, self._settings.ads_max_daily_budget_cents)
+        if acct.spend_cap_cents is not None:
+            budget_cents = min(budget_cents, acct.spend_cap_cents)
+        budget_cents = max(budget_cents, 100)
+
+        targeting: dict[str, Any] = {
+            "countries": plan.countries,
+            "age_min": plan.age_min,
+            "age_max": plan.age_max,
+            "creative_brief": plan.creative_brief.model_dump(mode="json"),
+            "prompt": cleaned_prompt[:500],
+        }
+        if page_external_id is not None:
+            targeting["page_id"] = page_external_id
+        if plan.optimization_goal:
+            targeting["optimization_goal"] = plan.optimization_goal
+
+        refs = [r for r in (creative_refs or []) if r.strip()]
+        if not refs:
+            ready_images = (
+                session.execute(
+                    select(Asset.id)
+                    .where(
+                        Asset.workspace_id == workspace_id,
+                        Asset.asset_kind == AssetKind.IMAGE.value,
+                        Asset.status == "ready",
+                    )
+                    .order_by(Asset.created_at.desc())
+                    .limit(3)
+                )
+                .scalars()
+                .all()
+            )
+            refs = [f"asset:{asset_id}" for asset_id in ready_images]
+
+        draft = self.create_draft(
+            session,
+            workspace_id=workspace_id,
+            actor_user_id=actor_user_id,
+            ad_account_id=acct.id,
+            name=plan.name,
+            objective=plan.objective,
+            daily_budget_cents=budget_cents,
+            targeting=targeting,
+            creative_refs=refs,
+            request_id=request_id,
+        )
+        return self.validate_draft(
+            session,
+            workspace_id=workspace_id,
+            draft_id=draft.id,
+            actor_user_id=actor_user_id,
+            request_id=request_id,
+        )
 
     # ------------------------------------------------------------------
     # 7.3 Approval-Gated Campaign Execution (Acceptance #16)
