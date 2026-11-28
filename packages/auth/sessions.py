@@ -13,7 +13,6 @@ from packages.shared.config import BaseAppSettings
 from packages.shared.errors import AuthenticationError, ServiceUnavailableError
 
 SESSION_COOKIE_NAME = "metuse_session"
-CSRF_COOKIE_NAME = "metuse_csrf"
 
 _REVOKED_JTI_PREFIX = "metuse:auth:revoked_jti:"
 _OAUTH_NONCE_PREFIX = "metuse:auth:oauth_nonce:"
@@ -183,7 +182,11 @@ def build_session_cookie_kwargs(
     *,
     max_age: int | None = None,
 ) -> CookieParams:
-    """Build HttpOnly; Secure; SameSite=Lax cookie attributes for web sessions."""
+    """Build HttpOnly; Secure; SameSite=Lax cookie attributes for web sessions.
+
+    SameSite=Lax is the CSRF mitigation for cookie-authenticated mutations: browsers
+    withhold the cookie on cross-site subrequests, and the SPA sends Bearer tokens.
+    """
     return CookieParams(
         httponly=True,
         secure=resolve_cookie_secure(settings),

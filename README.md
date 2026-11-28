@@ -2,7 +2,7 @@
 
 Cloud-first AI Social Growth & Media Operations Platform for agencies and creators: research, plan, create, edit, publish and measure social content from one tenant-aware system.
 
-- Full specification: [implementation (1).md](<implementation (1).md>)
+- Full specification: [implementation.md](<implementation.md>)
 - Phase 0 Architecture decisions, risks, open questions: [docs/architecture/decisions.md](docs/architecture/decisions.md)
 - Phased task plan: [docs/architecture/task-plan.md](docs/architecture/task-plan.md)
 - Ucuts audit: [docs/architecture/ucuts-audit.md](docs/architecture/ucuts-audit.md)
@@ -18,7 +18,7 @@ Single primary application API + single Alembic-managed canonical schema + Supab
 - **Storage (`packages/storage`):** S3-compatible private object storage (Supabase Storage S3 protocol or MinIO locally) with path-traversal and magic-byte/SVG-XSS validation
 - **Web (`apps/web`):** Planned thin frontend client (Node 24 + pnpm 10; Cloudflare Pages/Workers compatible)
 - **CI/CD (`.github/workflows`):** GitHub Actions CI (`ci.yml`), preview (`deploy-preview.yml`), and approval-gated production (`deploy-production.yml`)
-- **Phase 2+ Planned:** Temporal workflows, Meta Muse adapter, provider-independent video gateway, Ucuts + FFmpeg isolated render workers, Meta Graph/Instagram & Marketing API adapters
+- **Phases 2–7 Delivered:** Skill runtime + Meta Muse adapter, provider-independent video gateway, Ucuts + FFmpeg isolated render workers, Meta Graph/Instagram & Marketing API adapters, approval-gated publishing, and controlled ads execution (all currently mock-first; Temporal orchestration still planned)
 
 ## Repository Layout
 
@@ -79,7 +79,12 @@ uv run pytest tests/integration -v   # requires live PostgreSQL 16 (Supabase or 
 | Phase | Status |
 |---|---|
 | 0 - Reconnaissance, repo scaffold, decisions | Complete |
-| 1 - Unified Hybrid Cloud Foundation & API | In progress (pending live Supabase credentials & migration approval) |
-| 2-7 | Not started |
+| 1 - Unified Hybrid Cloud Foundation & API | Complete ([report](docs/phase-1/PHASE_1_COMPLETION_REPORT.md)) |
+| 2 - Skill runtime, Muse adapter, specialist workers | Complete ([report](docs/phase-2/PHASE_2_REPORT.md)) |
+| 3 - Unified video generation gateway | Complete ([report](docs/phase-3/PHASE_3_REPORT.md)) |
+| 4 - Cloud editing, Ucuts/FFmpeg, approvals | Complete ([report](docs/phase-4/PHASE_4_REPORT.md)) |
+| 5 - Meta Unified Login & connections | Complete ([report](docs/phase-5/PHASE_5_REPORT.md)) |
+| 6 - Approval-gated publishing & insights | Complete ([report](docs/phase-6/PHASE_6_REPORT.md)) |
+| 7 - Ads read & controlled execution + 18-test acceptance | Complete ([report](docs/phase-7/PHASE_7_AND_ACCEPTANCE_REPORT.md)) |
 
 Secrets: never commit. Use `.env.example` as a template only.

@@ -1,7 +1,7 @@
 # Phase 5 Completion Report — Meta Account Connection
 
 **Branch:** `feat/phase-5-meta-account-connection` (targeting `main` via PR #5)  
-**Spec Reference:** `implementation (1).md` (Sections 2, 8, 10, 11, 13, 15, 16, 17) & `docs/operations/meta-app-setup.md`  
+**Spec Reference:** `implementation.md` (Sections 2, 8, 10, 11, 13, 15, 16, 17) & `docs/operations/meta-app-setup.md`  
 **Cloud Budget Impact:** `$0/month` (`META_CONNECTIONS_MODE=mock` by default until a real Meta App & Business Portfolio are configured; Supabase Free + Render Free + Cloudflare Pages Free)
 
 ---

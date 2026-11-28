@@ -1,6 +1,6 @@
 # Architecture Decisions - Phase 0
 
-Date: 2026-11-25. Source of truth: `implementation (1).md`.
+Date: 2026-11-25. Source of truth: `implementation.md` (renamed from `implementation (1).md`).
 
 ## 1. Workspace and asset inventory
 

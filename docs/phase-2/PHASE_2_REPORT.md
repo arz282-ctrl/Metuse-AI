@@ -1,7 +1,7 @@
 # Phase 2 Completion Report — Skill Runtime, Meta Muse Adapter & Specialist Workers
 
 **Branch:** `feat/phase-2-skill-runtime-and-workers` (targeting `main` via PR #2)  
-**Spec Reference:** `implementation (1).md` (Sections 4.5, 5.2, 6, 8, 9, 10, 12, 16, 17, 18) & `docs/architecture/task-plan.md`  
+**Spec Reference:** `implementation.md` (Sections 4.5, 5.2, 6, 8, 9, 10, 12, 16, 17, 18) & `docs/architecture/task-plan.md`  
 **Cloud Budget Impact:** `$0/month` (Meta Muse runs in deterministic `mock` mode by default until a real `MUSE_API_KEY` is supplied; Supabase Free + Render Free + Cloudflare Pages Free)
 
 ---

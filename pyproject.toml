@@ -47,7 +47,7 @@ line-length = 100
 exclude = [
   ".venv",
   "apps/web",
-  "implementation (1).md",
+  "implementation.md",
   "node_modules",
   ".next",
   "tests/e2e",

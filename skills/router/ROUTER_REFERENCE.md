@@ -1,6 +1,6 @@
 # Skill Router Reference
 
-Routing reference for the Metuse AI worker runtime. Derived from `implementation (1).md` Section 4.4 and the Mr-Agents repository (commit `b6e7abbf49103ba924a40aa0338fd4df2590a976`).
+Routing reference for the Metuse AI worker runtime. Derived from `implementation.md` Section 4.4 and the Mr-Agents repository (commit `b6e7abbf49103ba924a40aa0338fd4df2590a976`).
 
 > Note: the `Mr-Agents-Assistant-Router.skill` archive was not present on disk or in the Drive folder during Phase 0. This file captures the deterministic routing rules from the specification instead. Replace/reconcile it if the archive is supplied later.
 

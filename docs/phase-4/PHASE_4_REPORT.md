@@ -1,7 +1,7 @@
 # Phase 4 Completion Report — Cloud Editing & Rendering Environment
 
 **Branch:** `feat/phase-4-cloud-editing-and-approvals` (targeting `main` via PR #4)  
-**Spec Reference:** `implementation (1).md` (Sections 7, 9, 10, 11, 14, 15, 16, 17) & `docs/architecture/ucuts-audit.md`  
+**Spec Reference:** `implementation.md` (Sections 7, 9, 10, 11, 14, 15, 16, 17) & `docs/architecture/ucuts-audit.md`  
 **Cloud Budget Impact:** `$0/month` (Cloud render workers default to deterministic `RENDER_MODE=mock` on Render Free Preview; Supabase Free + Render Free + Cloudflare Pages Free)
 
 ---

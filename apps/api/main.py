@@ -84,7 +84,6 @@ def create_app(
             "Authorization",
             "Content-Type",
             "X-Request-Id",
-            "X-CSRF-Token",
             "Idempotency-Key",
         ],
     )

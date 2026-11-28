@@ -1,7 +1,7 @@
 # Phase 3 Completion Report — Unified Video Generation Gateway
 
 **Branch:** `feat/phase-3-video-generation-gateway` (targeting `main` via PR #3)  
-**Spec Reference:** `implementation (1).md` (Sections 6, 10, 11, 14, 15, 16, 17) & `docs/architecture/task-plan.md`  
+**Spec Reference:** `implementation.md` (Sections 6, 10, 11, 14, 15, 16, 17) & `docs/architecture/task-plan.md`  
 **Cloud Budget Impact:** `$0/month` (Video Gateway runs in deterministic `mock` mode by default until a real `RUNWAY_API_KEY` is configured; Supabase Free + Render Free + Cloudflare Pages Free)
 
 ---

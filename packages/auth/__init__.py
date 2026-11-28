@@ -17,7 +17,6 @@ from packages.auth.rbac import (
     require_permission,
 )
 from packages.auth.sessions import (
-    CSRF_COOKIE_NAME,
     SESSION_COOKIE_NAME,
     CookieParams,
     InMemorySessionStore,
@@ -36,7 +35,6 @@ from packages.auth.supabase_jwt import (
 )
 
 __all__ = [
-    "CSRF_COOKIE_NAME",
     "ROLE_PERMISSIONS",
     "SESSION_COOKIE_NAME",
     "CookieParams",
