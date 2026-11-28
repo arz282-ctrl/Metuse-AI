@@ -210,6 +210,41 @@ class InstagramAccountType(StrEnum):
     PERSONAL = "personal"
 
 
+class ContentItemStatus(StrEnum):
+    """Lifecycle states for a scheduled or published social content item."""
+
+    DRAFT = "draft"
+    SCHEDULED = "scheduled"
+    PUBLISHING = "publishing"
+    PUBLISHED = "published"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class PublishMediaType(StrEnum):
+    """Supported Instagram Professional publishing media types (Section 8.5)."""
+
+    REELS = "reels"
+    IMAGE = "image"
+    VIDEO = "video"
+    CAROUSEL = "carousel"
+    STORY = "story"
+
+
+class PublishingJobStatus(StrEnum):
+    """Provider-independent publishing job state machine (Section 8.5)."""
+
+    QUEUED = "queued"
+    VALIDATING = "validating"
+    CONTAINER_CREATING = "container_creating"
+    CONTAINER_READY = "container_ready"
+    PUBLISHING = "publishing"
+    VERIFYING_REMOTE = "verifying_remote"
+    PUBLISHED = "published"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class AuditAction(StrEnum):
     """Canonical append-only audit log action identifiers."""
 
@@ -257,6 +292,12 @@ class AuditAction(StrEnum):
     META_CONNECTION_REVOKED = "meta.connection_revoked"
     META_PERSONAL_ACCOUNT_BLOCKED = "meta.personal_account_blocked"
     META_WEBHOOK_RECEIVED = "meta.webhook_received"
+    CONTENT_ITEM_CREATED = "content_item.created"
+    CONTENT_ITEM_SCHEDULED = "content_item.scheduled"
+    PUBLISHING_JOB_CREATED = "publishing_job.created"
+    PUBLISHING_JOB_PUBLISHED = "publishing_job.published"
+    PUBLISHING_JOB_FAILED = "publishing_job.failed"
+    INSIGHTS_SYNCED = "insights.synced"
 
 
 class ErrorCode(StrEnum):
@@ -287,6 +328,9 @@ class ErrorCode(StrEnum):
     META_RECONNECT_REQUIRED = "META_RECONNECT_REQUIRED"
     META_OAUTH_STATE_INVALID = "META_OAUTH_STATE_INVALID"
     META_REDIRECT_URI_NOT_ALLOWED = "META_REDIRECT_URI_NOT_ALLOWED"
+    CONTENT_APPROVAL_REQUIRED = "CONTENT_APPROVAL_REQUIRED"
+    PUBLISHING_LIMIT_EXCEEDED = "PUBLISHING_LIMIT_EXCEEDED"
+    CONTAINER_EXPIRED = "CONTAINER_EXPIRED"
     INVALID_TASK_TYPE = "INVALID_TASK_TYPE"
     SCHEMA_VALIDATION_FAILED = "SCHEMA_VALIDATION_FAILED"
     VALIDATION_ERROR = "VALIDATION_ERROR"

@@ -23,6 +23,7 @@ from apps.api.routes import (
     jobs,
     meta,
     projects,
+    publishing,
     video,
     workspaces,
 )
@@ -119,6 +120,7 @@ def create_app(
     app.include_router(editing.router)
     app.include_router(approvals.router)
     app.include_router(meta.router)
+    app.include_router(publishing.router)
     app.include_router(audit.router)
     return app
 
